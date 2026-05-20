@@ -67,10 +67,24 @@ def build_dataset(num_files=40):
                     pfr_in_hand = [False] * num_players
                     threebet_in_hand = [False] * num_players
                     
-                    # Parse actions
+                    # Flop dealing tracking
+                    flop_dealt = False
                     for action in hh.actions:
-                        if not action.startswith("p") and not action.startswith("d dh"):
+                        if action.startswith("d db "):
+                            flop_dealt = True
                             break
+                    
+                    folded_preflop = [False] * num_players
+                    folded_postflop = [False] * num_players
+                    postflop_cbr_hand = [0] * num_players
+                    postflop_cc_hand = [0] * num_players
+                    
+                    # Parse actions
+                    in_postflop = False
+                    for action in hh.actions:
+                        if action.startswith("d db "):
+                            in_postflop = True
+                            continue
                         if action.startswith("d "):
                             continue
                         parts = action.split()
@@ -81,18 +95,28 @@ def build_dataset(num_files=40):
                             continue
                         act_type = parts[1]
                         
-                        if act_type == "cbr":
-                            preflop_raises += 1
-                            vpip_in_hand[p_idx] = True
-                            pfr_in_hand[p_idx] = True
-                            if preflop_raises == 3:
-                                threebet_in_hand[p_idx] = True
-                        elif act_type == "cc":
-                            if p_idx == bb_idx:
-                                if preflop_raises > 1:
-                                    vpip_in_hand[p_idx] = True
-                            else:
+                        if not in_postflop:
+                            if act_type == "cbr":
+                                preflop_raises += 1
                                 vpip_in_hand[p_idx] = True
+                                pfr_in_hand[p_idx] = True
+                                if preflop_raises == 3:
+                                    threebet_in_hand[p_idx] = True
+                            elif act_type == "cc":
+                                if p_idx == bb_idx:
+                                    if preflop_raises > 1:
+                                        vpip_in_hand[p_idx] = True
+                                else:
+                                    vpip_in_hand[p_idx] = True
+                            elif act_type == "f":
+                                folded_preflop[p_idx] = True
+                        else:
+                            if act_type == "f":
+                                folded_postflop[p_idx] = True
+                            elif act_type == "cbr":
+                                postflop_cbr_hand[p_idx] += 1
+                            elif act_type == "cc":
+                                postflop_cc_hand[p_idx] += 1
                     
                     # Payouts simulation
                     state = None
@@ -108,7 +132,12 @@ def build_dataset(num_files=40):
                                 "vpip": 0,
                                 "pfr": 0,
                                 "threebet": 0,
-                                "profit_bb": 0.0
+                                "profit_bb": 0.0,
+                                "saw_flop": 0,
+                                "reached_showdown": 0,
+                                "won_showdown": 0,
+                                "postflop_cbr": 0,
+                                "postflop_cc": 0
                             }
                         
                         # Accumulate
@@ -120,6 +149,17 @@ def build_dataset(num_files=40):
                             p_stats["pfr"] += 1
                         if threebet_in_hand[idx]:
                             p_stats["threebet"] += 1
+                        
+                        # Postflop stats
+                        if flop_dealt and not folded_preflop[idx]:
+                            p_stats["saw_flop"] += 1
+                            if not folded_postflop[idx]:
+                                p_stats["reached_showdown"] += 1
+                                if payoffs[idx] > 0:
+                                    p_stats["won_showdown"] += 1
+                                    
+                        p_stats["postflop_cbr"] += postflop_cbr_hand[idx]
+                        p_stats["postflop_cc"] += postflop_cc_hand[idx]
                         
                         # Profit in Big Blinds
                         payoff = payoffs[idx]
@@ -136,7 +176,6 @@ def build_dataset(num_files=40):
     print(f"Total hands processed: {hands_processed}")
     print(f"Total unique players found: {len(player_data)}")
     
-    # Convert to DataFrame
     rows = []
     for name, stats in player_data.items():
         hands = stats["hands"]
@@ -147,12 +186,28 @@ def build_dataset(num_files=40):
         threebet_pct = (stats["threebet"] / hands) * 100
         winrate_bb_100 = (stats["profit_bb"] * 100) / hands
         
+        # Postflop metrics
+        saw_flop = stats["saw_flop"]
+        showdown = stats["reached_showdown"]
+        showdown_wins = stats["won_showdown"]
+        postflop_cbr = stats["postflop_cbr"]
+        postflop_cc = stats["postflop_cc"]
+        
+        wtsd_pct = (showdown / saw_flop) * 100 if saw_flop > 0 else 0.0
+        wsd_pct = (showdown_wins / showdown) * 100 if showdown > 0 else 0.0
+        
+        cbr_cc = postflop_cbr + postflop_cc
+        postflop_agg_pct = (postflop_cbr / cbr_cc) * 100 if cbr_cc > 0 else 0.0
+        
         rows.append({
             "Player": name,
             "Hands": hands,
             "VPIP": vpip_pct,
             "PFR": pfr_pct,
             "3Bet": threebet_pct,
+            "Postflop_Agg": postflop_agg_pct,
+            "WTSD": wtsd_pct,
+            "W$SD": wsd_pct,
             "WinRate": winrate_bb_100
         })
         

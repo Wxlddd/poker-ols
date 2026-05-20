@@ -37,7 +37,7 @@ def run_analysis():
         print(f"Dropped {initial_len - len(df_filtered)} rows containing null values.")
         
     # Variables definition
-    X_cols = ['VPIP', 'PFR', '3Bet', 'Hands']
+    X_cols = ['VPIP', 'PFR', '3Bet', 'Postflop_Agg', 'WTSD', 'W$SD', 'Hands']
     y_col = 'WinRate'
     
     # 2. Train/Test Split
