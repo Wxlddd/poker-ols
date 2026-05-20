@@ -1,0 +1,7 @@
+.venv/
+__pycache__/
+scratch/
+*.phh
+*.phhs
+.python-version
+uv.lock
