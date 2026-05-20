@@ -128,3 +128,55 @@ Tutte le metriche diagnostiche sono visualizzate nel grafico a 6 pannelli salvat
 4.  **Cook's Distance per osservazione:** Visualizza quali indici superano la soglia critica $4/n$.
 5.  **Studentized Residuals vs Leverage:** Grafico fondamentale per identificare i punti "pericolosi" con etichette sui primi 3 giocatori influenti.
 6.  **Cook's Distance vs Leverage:** Mostra la relazione dell'influenza all'aumentare della leva.
+
+---
+
+## 🛠️ Ottimizzazione del Modello (Sottomodelli OLS)
+
+Per massimizzare l'**Adjusted $R^2$**, abbiamo implementato una procedura di **Best Subset Selection**, esaminando tutte le 127 combinazioni possibili dei nostri 7 predittori.
+
+### Evidenze dall'Ottimizzazione
+*   **PFR** e **Hands** avevano p-value alti (0.984 e 0.490) nel modello iniziale, risultando ridondanti.
+*   Rimuovendo queste variabili, l'**Adjusted $R^2$** sale da `0.3204` a **`0.3238`** nel sottomodello ottimale a 5 variabili:
+    `[VPIP, 3Bet, Postflop_Agg, WTSD, W$SD]`.
+
+### Top 3 Sottomodelli Rilevati
+
+1.  **Sottomodello Ottimale (Rank 1):** `[VPIP, 3Bet, Postflop_Agg, WTSD, W$SD]`
+    *   **Adjusted $R^2$:** **`0.3238`** (R2 = `0.3421`, k=5)
+    *   **AIC:** `1888.54` | **BIC:** `1907.89`
+    *   **Test Set MSE:** `2183.74` | **Test Set R2:** `0.2407`
+2.  **Sottomodello Parsimonioso (Rank 2):** `[VPIP, 3Bet, Postflop_Agg, W$SD]`
+    *   **Adjusted $R^2$:** **`0.3237`** (R2 = `0.3383`, k=4)
+    *   **AIC:** **`1887.60`** (Il più basso in assoluto!) | **BIC:** `1903.73`
+3.  **Sottomodello Predittivo Test (Rank 3):** `[VPIP, Postflop_Agg, WTSD, W$SD]`
+    *   **Adjusted $R^2$:** **`0.3227`** (R2 = `0.3373`, k=4)
+    *   **Test Set MSE:** **`2120.68`** (Il minimo!) | **Test Set R2:** **`0.2627`** (Il massimo!)
+
+---
+
+## 🃏 Studio Empirico delle Mani di Partenza (Hold'em Heatmap)
+
+Per elevare il valore strategico del progetto, abbiamo condotto uno studio empirico su **tutte le 39.942 mani reali** del dataset, scansionando sia i deal iniziali in chiaro sia le azioni di showdown (`sm - show/muck`) per mappare le combinazioni e calcolarne redditività reale, frequenza, VPIP% e PFR%.
+
+Abbiamo ottenuto **12.670 osservazioni reali di mani di partenza**, organizzate nella **Hold'em Starting Hand Heatmap 13x13** standard (Pocket Pairs sulla diagonale, Suited nell'angolo in alto a destra, Offsuit nell'angolo in basso a sinistra):
+
+![Starting Hand Heatmap](starting_hand_heatmap.png)
+
+### Analisi dei Risultati Empirici sulle Mani
+
+*   **Le Mani d'Oro (Top Profit):**
+    1.  **AA:** `+31.66 BB` di profitto medio (261 osservazioni, VPIP = `99.2%`, PFR = `84.7%`).
+    2.  **QQ:** `+15.53 BB` (240 osservazioni, VPIP = `99.2%`, PFR = `82.5%`).
+    3.  **KK:** `+14.30 BB` (275 osservazioni, VPIP = `99.3%`, PFR = `81.5%`).
+    *(Nota: alcune combinazioni suited insolite mostrano profitti alterati dalla varianza su piccoli campioni reali, come K4s a +17.07 BB).*
+
+*   **Le Mani Disastrose (Top Losses):**
+    1.  **J7o:** `-12.50 BB` di perdita media (44 osservazioni, VPIP = `65.9%`).
+    2.  **64o:** `-7.64 BB` (34 osservazioni, VPIP = `67.6%`).
+    3.  **52o:** `-5.63 BB` (22 osservazioni, VPIP = `54.5%`).
+    4.  **J4s:** `-5.36 BB` (24 osservazioni, VPIP = `62.5%`).
+
+*   **Strategia e Frequenze:**
+    La matrice evidenzia che i giocatori regolari di questo dataset traggono quasi tutto il loro profitto dalle coppie alte (`AA-QQ`) e dalle migliori combinazioni suited broadway (`AKs`, `AQs`), mentre subiscono perdite sistematiche giocando mani offsuit deboli e non collegate. Il grafico 13x13 rappresenta una guida strategica visiva straordinaria del pool analizzato.
+

@@ -8,6 +8,61 @@ from sklearn.model_selection import train_test_split
 from sklearn.metrics import mean_squared_error, r2_score
 import matplotlib.pyplot as plt
 import scipy.stats as stats
+import itertools
+
+def run_best_subset_selection(X_train, y_train, X_test, y_test):
+    print("\n" + "=" * 60)
+    print("BEST SUBSET SELECTION (OLS SUBMODEL OPTIMIZATION)")
+    print("=" * 60)
+    
+    variables = list(X_train.columns)
+    results = []
+    
+    # Try all non-empty subsets of variables
+    for k in range(1, len(variables) + 1):
+        for subset in itertools.combinations(variables, k):
+            subset = list(subset)
+            # Fit model on training set
+            X_train_sub = sm.add_constant(X_train[subset])
+            model_sub = sm.OLS(y_train, X_train_sub).fit()
+            
+            # Predict on test set
+            X_test_sub = sm.add_constant(X_test[subset])
+            y_pred_sub = model_sub.predict(X_test_sub)
+            
+            mse_sub = mean_squared_error(y_test, y_pred_sub)
+            r2_test_sub = r2_score(y_test, y_pred_sub)
+            
+            results.append({
+                'subset': subset,
+                'k': k,
+                'r2': model_sub.rsquared,
+                'adj_r2': model_sub.rsquared_adj,
+                'aic': model_sub.aic,
+                'bic': model_sub.bic,
+                'test_mse': mse_sub,
+                'test_r2': r2_test_sub,
+                'model': model_sub
+            })
+            
+    # Rank by Adjusted R2
+    results_sorted = sorted(results, key=lambda x: x['adj_r2'], reverse=True)
+    
+    print(f"Tested all {len(results)} non-empty variable combinations.")
+    print("\n--- Top 5 Submodels Ranked by Adjusted R-squared ---")
+    for idx, res in enumerate(results_sorted[:5]):
+        vars_str = ", ".join(res['subset'])
+        print(f"Rank {idx+1}: Adjusted R2 = {res['adj_r2']:.4f} (R2 = {res['r2']:.4f}, k={res['k']})")
+        print(f"        AIC = {res['aic']:.2f}, BIC = {res['bic']:.2f}")
+        print(f"        Test Set MSE = {res['test_mse']:.2f}, Test Set R2 = {res['test_r2']:.4f}")
+        print(f"        Variables: [{vars_str}]")
+        print("-" * 50)
+        
+    best_model_res = results_sorted[0]
+    
+    print("\n--- Optimal Submodel Summary ---")
+    print(best_model_res['model'].summary())
+    return best_model_res
 
 def run_analysis():
     print("=" * 60)
@@ -245,7 +300,9 @@ def run_analysis():
     else:
         print("\nConclusion: Fail to reject the null hypothesis of homoscedasticity.")
         print("The residuals are homoscedastic.")
-        
+    # 6. Best Subset Selection (OLS Submodel Optimization)
+    best_submodel = run_best_subset_selection(X_train, y_train, X_test, y_test)
+    
     print("\n" + "=" * 60)
     print("ANALYSIS COMPLETED SUCCESSFULLY")
     print("=" * 60)
