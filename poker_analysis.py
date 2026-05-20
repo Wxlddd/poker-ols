@@ -83,8 +83,8 @@ def run_analysis():
     print("\n--- Model Estimation Summary ---")
     print(model.summary())
     
-    # 5. Evaluation and Residual Diagnostics
-    print("\n[STEP 5] Model Evaluation on Test Set...")
+    # 5. Evaluation and Advanced Diagnostics
+    print("\n[STEP 5] Model Evaluation & Information Criteria...")
     X_test_ols = sm.add_constant(X_test)
     y_pred = model.predict(X_test_ols)
     
@@ -93,37 +93,143 @@ def run_analysis():
     
     print(f"Test Set Mean Squared Error (MSE): {mse:.4f}")
     print(f"Test Set R-squared (R2): {r2_test:.4f}")
+    print(f"Akaike Information Criterion (AIC): {model.aic:.2f}")
+    print(f"Bayesian Information Criterion (BIC): {model.bic:.2f}")
     
-    # Diagnostic Plots
-    print("\nGenerating Diagnostic Plots...")
-    residuals = model.resid
-    fitted_vals = model.fittedvalues
+    print("\n[STEP 6] Advanced Regression Diagnostics (Outliers, Leverage & Influence)...")
     
-    # Residuals vs Fitted Plot
-    plt.figure(figsize=(10, 5))
-    plt.subplot(1, 2, 1)
-    plt.scatter(fitted_vals, residuals, alpha=0.5, color='royalblue', edgecolor='none')
-    plt.axhline(0, color='red', linestyle='--', lw=2)
-    plt.title('Residuals vs Fitted')
-    plt.xlabel('Fitted Values')
-    plt.ylabel('Residuals')
-    plt.grid(True, linestyle=':', alpha=0.6)
+    # Calculate influence, leverage and Cook's distance
+    influence = model.get_influence()
+    leverage = influence.hat_matrix_diag
+    cooks_d, _ = influence.cooks_distance
+    student_resid = influence.resid_studentized_external
     
-    # Normal Q-Q Plot
-    plt.subplot(1, 2, 2)
-    stats.probplot(residuals, dist="norm", plot=plt)
-    plt.title('Normal Q-Q Plot')
-    plt.grid(True, linestyle=':', alpha=0.6)
+    # Sample and parameter count
+    n = X_train_ols.shape[0]
+    p = X_train_ols.shape[1] # includes constant
+    
+    # Thresholds
+    leverage_thresh = 2 * p / n
+    cooks_thresh = 4 / n
+    outlier_thresh = 2.0
+    
+    print(f"Sample Size (n): {n}")
+    print(f"Number of parameters (p): {p}")
+    print(f"Leverage Threshold (2p/n): {leverage_thresh:.4f}")
+    print(f"Cook's Distance Threshold (4/n): {cooks_thresh:.4f}")
+    
+    # Create a DataFrame of diagnostics for training set
+    diag_df = pd.DataFrame({
+        'Player': df_filtered.loc[X_train.index, 'Player'],
+        'WinRate': y_train,
+        'Fitted': model.fittedvalues,
+        'Residual': model.resid,
+        'Studentized_Resid': student_resid,
+        'Leverage': leverage,
+        'Cooks_D': cooks_d
+    })
+    
+    # Identify outliers, leverage points, and influential points
+    outliers = diag_df[np.abs(diag_df['Studentized_Resid']) > outlier_thresh]
+    high_leverage = diag_df[diag_df['Leverage'] > leverage_thresh]
+    high_influence = diag_df[diag_df['Cooks_D'] > cooks_thresh]
+    
+    print(f"\n--- Outlier Diagnostics (Studentized Residual |r| > {outlier_thresh}) ---")
+    print(f"Total Outliers: {len(outliers)} ({len(outliers)/n*100:.1f}% of training sample)")
+    if len(outliers) > 0:
+        print(outliers[['Player', 'WinRate', 'Studentized_Resid']].sort_values(by='Studentized_Resid', key=abs, ascending=False).head(5).to_string(index=False))
+        
+    print(f"\n--- Leverage Diagnostics (Hat Value > {leverage_thresh:.4f}) ---")
+    print(f"Total High Leverage Points: {len(high_leverage)} ({len(high_leverage)/n*100:.1f}% of training sample)")
+    if len(high_leverage) > 0:
+        print(high_leverage[['Player', 'WinRate', 'Leverage']].sort_values(by='Leverage', ascending=False).head(5).to_string(index=False))
+        
+    print(f"\n--- Influence Diagnostics (Cook's Distance > {cooks_thresh:.4f}) ---")
+    print(f"Total Highly Influential Points: {len(high_influence)} ({len(high_influence)/n*100:.1f}% of training sample)")
+    if len(high_influence) > 0:
+        print(high_influence[['Player', 'WinRate', 'Cooks_D']].sort_values(by='Cooks_D', ascending=False).head(5).to_string(index=False))
+        
+    # Generate Advanced 6-Panel Diagnostic Plots
+    print("\nGenerating Advanced Diagnostic Plots (6-panel grid)...")
+    fig, axes = plt.subplots(3, 2, figsize=(14, 15))
+    
+    # 1. Residuals vs Fitted
+    axes[0, 0].scatter(diag_df['Fitted'], diag_df['Residual'], alpha=0.6, color='royalblue', edgecolor='none')
+    axes[0, 0].axhline(0, color='red', linestyle='--', lw=1.5)
+    axes[0, 0].set_title('1. Residuals vs Fitted')
+    axes[0, 0].set_xlabel('Fitted Values')
+    axes[0, 0].set_ylabel('Raw Residuals')
+    axes[0, 0].grid(True, linestyle=':', alpha=0.6)
+    
+    # 2. Normal Q-Q Plot of Studentized Residuals
+    stats.probplot(diag_df['Studentized_Resid'], dist="norm", plot=axes[0, 1])
+    axes[0, 1].get_lines()[0].set_color('royalblue')
+    axes[0, 1].get_lines()[0].set_alpha(0.6)
+    axes[0, 1].set_title('2. Normal Q-Q Plot (Studentized Residuals)')
+    axes[0, 1].grid(True, linestyle=':', alpha=0.6)
+    
+    # 3. Histogram of Residuals with KDE & Normal Distribution
+    axes[1, 0].hist(diag_df['Studentized_Resid'], bins=20, density=True, alpha=0.6, color='royalblue', edgecolor='white')
+    # Fit normal distribution
+    mu, std = stats.norm.fit(diag_df['Studentized_Resid'])
+    xmin, xmax = axes[1, 0].get_xlim()
+    x_range = np.linspace(xmin, xmax, 100)
+    p_norm = stats.norm.pdf(x_range, mu, std)
+    axes[1, 0].plot(x_range, p_norm, 'r-', lw=2, label=f'Normal Fit\n(μ={mu:.2f}, σ={std:.2f})')
+    # KDE
+    diag_df['Studentized_Resid'].plot(kind='density', ax=axes[1, 0], color='darkorange', lw=2, label='KDE')
+    axes[1, 0].set_title('3. Studentized Residuals Distribution')
+    axes[1, 0].set_xlabel('Studentized Residuals')
+    axes[1, 0].set_ylabel('Density')
+    axes[1, 0].legend()
+    axes[1, 0].grid(True, linestyle=':', alpha=0.6)
+    
+    # 4. Cook's Distance Plot
+    axes[1, 1].stem(diag_df.index, diag_df['Cooks_D'], markerfmt=' ', basefmt=" ")
+    axes[1, 1].axhline(cooks_thresh, color='red', linestyle='--', lw=1.5, label=f'Threshold (4/n = {cooks_thresh:.4f})')
+    axes[1, 1].set_title("4. Cook's Distance per Observation")
+    axes[1, 1].set_xlabel('Observation Index')
+    axes[1, 1].set_ylabel("Cook's D")
+    axes[1, 1].legend()
+    axes[1, 1].grid(True, linestyle=':', alpha=0.6)
+    
+    # 5. Leverage (Hat values) vs Studentized Residuals
+    axes[2, 0].scatter(diag_df['Leverage'], diag_df['Studentized_Resid'], alpha=0.6, color='royalblue', edgecolor='none')
+    axes[2, 0].axhline(0, color='black', linestyle='-', lw=1)
+    axes[2, 0].axhline(outlier_thresh, color='red', linestyle=':', lw=1.5)
+    axes[2, 0].axhline(-outlier_thresh, color='red', linestyle=':', lw=1.5)
+    axes[2, 0].axvline(leverage_thresh, color='red', linestyle='--', lw=1.5, label=f'Leverage Thresh ({leverage_thresh:.4f})')
+    axes[2, 0].set_title('5. Studentized Residuals vs Leverage')
+    axes[2, 0].set_xlabel('Leverage (Hat Values)')
+    axes[2, 0].set_ylabel('Studentized Residuals')
+    # Label top 3 Cook's D points in the plot
+    top_cooks = diag_df.nlargest(3, 'Cooks_D')
+    for idx, row in top_cooks.iterrows():
+        axes[2, 0].annotate(row['Player'][:6] + '...', (row['Leverage'], row['Studentized_Resid']), 
+                             textcoords="offset points", xytext=(0,10), ha='center', fontsize=9,
+                             bbox=dict(boxstyle="round,pad=0.3", fc="yellow", alpha=0.5))
+    axes[2, 0].legend()
+    axes[2, 0].grid(True, linestyle=':', alpha=0.6)
+    
+    # 6. Cook's D vs Leverage
+    axes[2, 1].scatter(diag_df['Leverage'], diag_df['Cooks_D'], alpha=0.6, color='royalblue', edgecolor='none')
+    axes[2, 1].axvline(leverage_thresh, color='red', linestyle='--', lw=1.5)
+    axes[2, 1].axhline(cooks_thresh, color='red', linestyle='--', lw=1.5, label=f'Cooks Thresh ({cooks_thresh:.4f})')
+    axes[2, 1].set_title("6. Cook's Distance vs Leverage")
+    axes[2, 1].set_xlabel('Leverage (Hat Values)')
+    axes[2, 1].set_ylabel("Cook's D")
+    axes[2, 1].legend()
+    axes[2, 1].grid(True, linestyle=':', alpha=0.6)
     
     plt.tight_layout()
     plots_path = 'residual_diagnostics.png'
     plt.savefig(plots_path, dpi=150)
     plt.close()
-    print(f"Diagnostic plots saved to '{plots_path}'.")
+    print(f"Advanced diagnostic plots saved to '{plots_path}'.")
     
     # Breusch-Pagan Test for Heteroscedasticity
     print("\nPerforming Breusch-Pagan Test...")
-    bp_test = het_breuschpagan(residuals, X_train_ols)
+    bp_test = het_breuschpagan(diag_df['Residual'], X_train_ols)
     labels = ['Lagrange Multiplier statistic', 'p-value', 'f-value', 'f p-value']
     bp_results = dict(zip(labels, bp_test))
     
