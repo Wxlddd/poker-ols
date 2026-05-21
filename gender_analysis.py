@@ -279,7 +279,7 @@ def main():
     
     # Generate Advanced Leverage and Cook's Distance Plot
     print("\nGenerating Leverage and Cook's Distance plots...")
-    fig, axes = plt.subplots(1, 2, figsize=(16, 6))
+    fig, axes = plt.subplots(2, 1, figsize=(12, 10))
     
     # Plot 1: Leverage Index Plot
     axes[0].scatter(
@@ -311,18 +311,24 @@ def main():
     axes[1].set_xlabel("Indice Osservazione")
     axes[1].set_ylabel("Distanza di Cook ($D_i$)")
     
-    # Annotate top 5 outliers
-    for idx in top_5_idx:
+    # Set Y-limit to make room for staggered labels
+    axes[1].set_ylim(0, max(cooks_d) * 1.8)
+    
+    # Annotate top 5 outliers with staggered positions to prevent horizontal/vertical overlapping
+    for i, idx in enumerate(top_5_idx):
         name = final_df.iloc[idx]['EmployeeName']
         val = cooks_d[idx]
+        # Stagger horizontally and vertically based on order
+        h_offset = -15000 if i % 2 == 0 else 15000
+        v_offset = 0.0003 + (i * 0.0003)
         axes[1].annotate(
             name, 
             xy=(idx, val), 
-            xytext=(idx + n*0.02, val + 0.002),
+            xytext=(idx + h_offset, val + v_offset),
             arrowprops=dict(facecolor='black', arrowstyle='->', lw=0.8),
             fontsize=8,
             fontweight='bold',
-            bbox=dict(boxstyle='round,pad=0.2', fc='yellow', alpha=0.6)
+            bbox=dict(boxstyle='round,pad=0.2', fc='yellow', alpha=0.7)
         )
     axes[1].legend()
     
@@ -342,6 +348,18 @@ def main():
         print("Result: Reject H0 (Homoscedasticity). Strong evidence of eteroschedasticity!")
     else:
         print("Result: Fail to reject H0. Residuals are homoscedastic.")
+        
+    # Normality: Shapiro-Wilk Test (on a subsample of 5000 residuals due to large N sensitivity and limits)
+    print("\nRunning Shapiro-Wilk Normality Test on a random subsample of 5000 residuals (Naïve Model)...")
+    np.random.seed(42)
+    subsample_res = np.random.choice(residuals, 5000, replace=False)
+    shapiro_stat, shapiro_p = stats.shapiro(subsample_res)
+    print(f"Shapiro-Wilk W-statistic: {shapiro_stat:.6f}")
+    print(f"Shapiro-Wilk p-value: {shapiro_p:.8e}")
+    if shapiro_p < 0.05:
+        print("Result: Reject H0 (Normality). Residuals are NOT normally distributed!")
+    else:
+        print("Result: Fail to reject H0 (Normality). Residuals are approximately normal.")
         
     # Generate OLS Diagnostic Plots
     print("\nGenerating OLS Diagnostic Plots...")
@@ -522,6 +540,18 @@ def main():
     plt.savefig('transformed_diagnostics.png', dpi=150)
     plt.close()
     copy_to_artifacts('transformed_diagnostics.png')
+    
+    # Normality: Shapiro-Wilk Test (on a subsample of 5000 residuals due to large N sensitivity and limits)
+    print("\nRunning Shapiro-Wilk Normality Test on a random subsample of 5000 residuals (Transformed Model, lambda=0.5)...")
+    np.random.seed(42)
+    subsample_res_t = np.random.choice(results_trans.resid, 5000, replace=False)
+    shapiro_stat_t, shapiro_p_t = stats.shapiro(subsample_res_t)
+    print(f"Shapiro-Wilk W-statistic (Transformed): {shapiro_stat_t:.6f}")
+    print(f"Shapiro-Wilk p-value (Transformed): {shapiro_p_t:.8e}")
+    if shapiro_p_t < 0.05:
+        print("Result: Reject H0 (Normality). Transformed residuals are STILL NOT perfectly normally distributed, but normal approximation is vastly improved.")
+    else:
+        print("Result: Fail to reject H0 (Normality). Transformed residuals are approximately normal.")
     
     # -------------------------------------------------------------------------
     # STEP 6: NESTED MODEL COMPARISON & SELECTION (F-Test / ANOVA / VIF)

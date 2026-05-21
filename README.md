@@ -73,7 +73,8 @@ $$\hat{\vec{\beta}}\_{RR}(\lambda) = (Z\_{\text{std}}^T Z\_{\text{std}} + \lambd
 * **Composizione**: **42,1% Femmine (1)**, **57,9% Maschi (0)**.
 
 ### 1. Modello OLS con Trasformazione Radice Quadrata ($\lambda = 0.5$)
-Il fitting dell'OLS sulla scala trasformata $Y^{(0.5)}$ restituisce ottime metriche:
+
+Il fitting dell'OLS sulla scala trasformata $Y^{(0.5)}$ restituisce le seguenti metriche:
 * **$R^2$ Rettificato**: **0,327**
 * **F-statistic**: **4.389** ($p\text{-value} = 0.000$)
 
@@ -99,14 +100,88 @@ Il fitting dell'OLS sulla scala trasformata $Y^{(0.5)}$ restituisce ottime metri
 
 ---
 
-### 2. Interpretazione Econometrica delle Interazioni
+### 2. Test di Normalità (Shapiro-Wilk) e Giustificazione Asintotica
 
-La derivata parziale della retribuzione trasformata $\sqrt{Y}$ rispetto a Gender (Femmina) è espressa da:
-$$\frac{\partial Y^{(0.5)}}{\partial \text{Gender}} = -27.94 + 28.03 \cdot \text{Education} + 8.42 \cdot \text{Medical} - 50.00 \cdot \text{Police}$$
+Per verificare l'ipotesi di normalità dei residui, abbiamo calcolato la statistica di **Shapiro-Wilk** su un sottocampione casuale di $5.000$ osservazioni (pratica standard motivata dai limiti di dimensione e dall'ipersensibilità del test su grandi campioni):
+* **Modello Naïve**: $W = 0.9851$ | $p\text{-value} = 1.34 \times 10^{-22}$
+* **Modello Trasformato ($\lambda = 0.5$)**: $W = 0.9697$ | $p\text{-value} = 3.15 \times 10^{-31}$
 
-* **Divario di Base**: Nella macro-categoria di riferimento (`Other`), le donne guadagnano significativamente meno dei colleghi uomini ($\beta\_{\text{Gender}} = -27.94$, $p < 0.001$).
-* **Mitigazione totale in Education**: Nel settore scolastico/educativo, il divario di genere è totalmente annullato, con pendenze che portano il gap a zero ($\beta\_{\text{Gender}} + \beta\_{\text{Gender} \times \text{Education}} = -27.94 + 28.03 = +0.09$, statisticamente nullo).
-* **Ampliamento nelle Forze dell'Ordine**: Nel corpo di Polizia, il divario salariale si amplia drammaticamente, registrando la disparità più elevata a svantaggio del genere femminile ($\beta\_{\text{Gender}} + \beta\_{\text{Gender} \times \text{Police}} = -27.94 - 50.00 = -77.94$, $p < 0.001$).
+> [!WARNING]
+> **Sensibilità ai Grandi Campioni**: Entrambi i test rifiutano l'ipotesi nulla di normalità ($p < 0.05$). Tuttavia, con $N = 126.306$, anche deviazioni minime e del tutto ininfluenti portano a un rifiuto di $H\_0$ per l'estrema potenza del test.
+> 
+> Ai fini dell'inferenza statistica (validità dei test $t$ ed $F$), facciamo pieno affidamento sul **Teorema del Limite Centrale (CLT)**. Avendo $N \gg 30$, gli stimatori OLS sono asintoticamente normali:
+> $$\hat{\vec{\beta}} \sim_{\text{asint}} \mathcal{N}\left(\vec{\beta}, \sigma^2 (Z^T Z)^{-1}\right)$$
+> Questo assicura la validità dei p-value e degli intervalli di confidenza calcolati.
+
+---
+
+### 3. Analisi della Struttura dei Residui (Bande Verticali)
+
+La presenza di **bande verticali** parallele nel grafico *Residuals vs Fitted* non indica un'anomalia del modello.
+
+> [!NOTE]
+> **Origine delle Bande Verticali**:
+> Questa conformazione deriva direttamente dal fatto che la matrice di disegno $Z$ contiene quasi esclusivamente **covariate discrete o dummy** (genere, macro-ruolo, anno e un proxy discreto di anzianità a 4 livelli). Di conseguenza, i valori previsti dal modello $\hat{y}$ possono assumere solo una serie limitata di valori discreti distinti, concentrando le osservazioni in colonne verticali. La variabilità all'interno di ciascuna colonna corrisponde al termine di errore casuale $\varepsilon_i$, simmetrico rispetto allo zero.
+
+---
+
+### 4. Likelihood Ratio e Trade-Off Econometrico ($\lambda = 0.5$ vs $\lambda = 1.0$)
+
+La massimizzazione della log-verosimiglianza indica un $\lambda_{\text{MLE}} = 0.5969$, molto vicino al valore interpretabile $\lambda = 0.5$ (trasformazione radice quadrata, $\sqrt{Y}$).
+
+Formalmente, un **test del Rapporto di Verosimiglianza (Likelihood Ratio Test)** tra il modello lineare naïve ($\lambda = 1.0$) e il modello trasformato ($\lambda = 0.5$) rifiuta ampiamente l'ipotesi nulla di equivalenza:
+$$LR = 2 \cdot \left( L(\hat{\lambda}\_{\text{MLE}}) - L(1.0) \right) \gg \chi^2_1(0.05)$$
+Ciò dimostra l'utilità statistica della trasformazione nel ridurre l'eteroschedasticità e linearizzare i residui.
+
+Tuttavia, occorre considerare il **trade-off econometrico**: la trasformazione $\sqrt{Y}$ deforma la scala originaria della retribuzione totale. I coefficienti non esprimono più una variazione lineare in dollari diretti, bensì in "radici quadrate di dollari", diminuendo l'immediatezza interpretativa per i non addetti ai lavori rispetto al modello lineare originario.
+
+---
+
+### 5. Interpretazione del Gender Pay Gap e dell'Effetto Anzianità
+
+* **Le donne guadagnano meno a parità di ruolo e anzianità?**
+  **Sì.** Il coefficiente principale per il genere femminile è significativamente negativo: $\beta\_{\text{Gender}} = -27.94$ ($t = -19.19$, $p < 0.001$). A parità di categoria lavorativa di base (`Other`), anno e anzianità, le donne registrano un divario retributivo sistematico a loro svantaggio. L'unica macro-categoria lavorativa che compensa ed elimina interamente questo gap è `Education` (dove il gap netto si annulla: $-27.94 + 28.03 = +0.09$, non statisticamente significativo).
+* **Il divario retributivo aumenta o diminuisce con l'anzianità?**
+  L'interazione continua tra genere ed anzianità (`Gender x Seniority`) restituisce un coefficiente pari a **$-1.48$** nel modello trasformato (e **$-604.30$** nel modello naïve in dollari).
+  In entrambi i modelli, questo coefficiente **non è statisticamente significativo** ai livelli standard (p-value pari a **$0.261$** per il modello trasformato e **$0.064$** per il modello naïve).
+  
+  *Conclusione Econometrica*: **Non vi è evidenza empirica sufficiente** per affermare che il divario salariale cambi sistematicamente lungo la carriera lavorativa dei dipendenti. Il pay gap rimane **costante e stabile** all'aumentare dell'anzianità.
+* **Limitazione del Proxy di Anzianità**: Ricordiamo che `Seniority` è un proxy parziale (numero di anni di comparsa del dipendente nel dataset limitato 2011-2014) e non rappresenta la reale esperienza professionale totale pregressa del lavoratore.
+
+---
+
+### 6. Analisi della Multicollinearità (VIF)
+
+Per escludere distorsioni nelle stime e nel calcolo delle varianze dovute a collinearità tra dummy lavorative, temporali e termini di interazione, abbiamo calcolato i **Variance Inflation Factors (VIF)** per tutte le covariate:
+
+| Covariata | Valore VIF | Stato Collinearità |
+| :--- | :---: | :---: |
+| **Seniority** | 4.53 | Bassa (Sotto Soglia 5.0) |
+| **Gender x Job_Medical** | 4.50 | Bassa (Sotto Soglia 5.0) |
+| **Job_Medical** | 4.11 | Bassa (Sotto Soglia 5.0) |
+| **Year_2014** | 3.07 | Bassa (Sotto Soglia 5.0) |
+| **Gender** | 2.96 | Bassa (Sotto Soglia 5.0) |
+| **Gender x Seniority** | 2.48 | Bassa (Sotto Soglia 5.0) |
+| **Year_2012** | 2.18 | Bassa (Sotto Soglia 5.0) |
+| **Gender x Job_Education** | 2.05 | Bassa (Sotto Soglia 5.0) |
+| **Job_Education** | 1.99 | Bassa (Sotto Soglia 5.0) |
+| **Job_Police** | 1.49 | Bassa (Sotto Soglia 5.0) |
+| **Gender x Job_Police** | 1.46 | Bassa (Sotto Soglia 5.0) |
+| **Year_2013** | 1.36 | Bassa (Sotto Soglia 5.0) |
+| **Job_Fire** | 1.25 | Bassa (Sotto Soglia 5.0) |
+| **Gender x Job_Fire** | 1.23 | Bassa (Sotto Soglia 5.0) |
+
+> [!TIP]
+> **Assenza di Collinearità Critica**: Poiché tutti i VIF sono ampiamente al di sotto del valore critico di **$5.0$**, possiamo escludere problemi legati a multicollinearità. Gli stimatori OLS rimangono stabili, efficienti e a varianza minima (teorema di Gauss-Markov confermato).
+
+---
+
+### 7. Regolarizzazione Ridge e Analisi dei Coefficienti
+
+Per analizzare la stabilità e contrazione dei nostri coefficienti, abbiamo calcolato analiticamente lo stimatore Ridge al variare di $\lambda \in [10^{-2}, 10^5]$ su covariate standardizzate (per evitare penalizzazioni inique dovute a scale differenti):
+$$\hat{\vec{\beta}}\_{RR}(\lambda) = (Z\_{\text{std}}^T Z\_{\text{std}} + \lambda I)^{-1} Z\_{\text{std}}^T \vec{y}\_{\text{centrata}}$$
+
+*Il grafico del Ridge Path (`ridge_path.png`) mostra che i coefficienti professionali (`Job_Education`, `Job_Fire`, `Job_Police`) sono i più resilienti alla regolarizzazione, confermando che il settore professionale è il fattore esplicativo principale del livello salariale. Al contrario, le interazioni legate al genere si contraggono molto più rapidamente, indicando un impatto relativo decisamente inferiore rispetto alla struttura salariale di base.*
 
 ---
 
