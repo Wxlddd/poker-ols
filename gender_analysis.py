@@ -430,12 +430,11 @@ def main():
     copy_to_artifacts('boxcox_likelihood.png')
     
     # Econometric custom transformation decision
-    if abs(opt_lambda) < 0.1:
-        print("Note: Since lambda is close to 0, we apply the standard econometric Logarithmic Transformation: ln(Y).")
-        Y_trans = np.log(Y)
-        opt_lambda = 0.0
-    else:
-        Y_trans = stats.boxcox(Y, lmbda=opt_lambda)
+    # Round optimal lambda to the nearest highly interpretable standard value (0.5 for square root)
+    print(f"Optimal Lambda (MLE) is {opt_lambda:.4f}.")
+    print("For econometric interpretability, we round it to the nearest standard value: lambda = 0.5 (Square Root Transformation).")
+    opt_lambda = 0.5
+    Y_trans = stats.boxcox(Y, lmbda=0.5)
         
     # Generate Salary Distribution Plot (Raw vs Transformed)
     print("\nGenerating Salary Distribution plot (raw vs transformed)...")
