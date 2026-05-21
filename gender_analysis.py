@@ -122,6 +122,51 @@ def main():
     print("Gender breakdown (1 = Female, 0 = Male):")
     print(final_df['Gender'].value_counts(normalize=True) * 100)
     
+    # Generate Gender Pay Gap by Job Category Plot
+    print("\nGenerating Gender Pay Gap by Job Category Plot...")
+    plt.figure(figsize=(12, 6))
+    plot_df = final_df.copy()
+    plot_df['Genere'] = plot_df['Gender'].map({0: 'Uomo (0)', 1: 'Donna (1)'})
+    sns.boxplot(
+        data=plot_df, 
+        x='JobCategory', 
+        y='TotalPay', 
+        hue='Genere', 
+        palette={'Uomo (0)': '#1f77b4', 'Donna (1)': '#e377c2'},
+        showfliers=False
+    )
+    plt.title('Distribuzione della Retribuzione Totale per Macro-Categoria e Genere')
+    plt.xlabel('Macro-Categoria Lavorativa')
+    plt.ylabel('Total Pay ($)')
+    plt.legend(title='Genere')
+    plt.tight_layout()
+    plt.savefig('gender_pay_gap_by_job.png', dpi=150)
+    plt.close()
+    copy_to_artifacts('gender_pay_gap_by_job.png')
+
+    # Generate Seniority Pay Gap Plot
+    print("Generating Seniority Pay Gap Plot...")
+    plt.figure(figsize=(10, 6))
+    sns.lineplot(
+        data=plot_df, 
+        x='Seniority', 
+        y='TotalPay', 
+        hue='Genere', 
+        marker='o',
+        linewidth=2.5,
+        palette={'Uomo (0)': '#1f77b4', 'Donna (1)': '#e377c2'},
+        errorbar=('ci', 95)
+    )
+    plt.title('Andamento Medio della Retribuzione Totale per Anzianità e Genere')
+    plt.xlabel('Anzianità (Proxy Anni di Servizio)')
+    plt.ylabel('Retribuzione Totale Media ($)')
+    plt.xticks(sorted(plot_df['Seniority'].unique()))
+    plt.legend(title='Genere')
+    plt.tight_layout()
+    plt.savefig('seniority_pay_gap.png', dpi=150)
+    plt.close()
+    copy_to_artifacts('seniority_pay_gap.png')
+    
     # -------------------------------------------------------------------------
     # STEP 2: DESIGN MATRIX (Z) SPECIFICATION & RANK VERIFICATION
     # -------------------------------------------------------------------------
@@ -232,6 +277,61 @@ def main():
     print("\nTop 5 Influential Outliers by Cook's Distance:")
     print(top_5_outliers[['EmployeeName', 'JobTitle', 'TotalPay', 'Gender', 'Cooks_D', 'Student_Res']])
     
+    # Generate Advanced Leverage and Cook's Distance Plot
+    print("\nGenerating Leverage and Cook's Distance plots...")
+    fig, axes = plt.subplots(1, 2, figsize=(16, 6))
+    
+    # Plot 1: Leverage Index Plot
+    axes[0].scatter(
+        range(n), 
+        h, 
+        color='#1f77b4', 
+        s=2, 
+        alpha=0.2, 
+        label='Leverage ($h_{ii}$)',
+        rasterized=True
+    )
+    axes[0].axhline(leverage_threshold, color='red', linestyle='--', linewidth=1.5, label=f'Soglia: {leverage_threshold:.6f}')
+    axes[0].set_title("Index Plot dei Punti di Leva (Leverage)")
+    axes[0].set_xlabel("Indice Osservazione")
+    axes[0].set_ylabel("Valore di Leva ($h_{ii}$)")
+    axes[0].legend()
+    
+    # Plot 2: Cook's Distance Index Plot
+    axes[1].scatter(
+        range(n), 
+        cooks_d, 
+        color='#d62728', 
+        s=2, 
+        alpha=0.2, 
+        label="Distanza di Cook ($D_i$)",
+        rasterized=True
+    )
+    axes[1].set_title("Index Plot della Distanza di Cook ($D_i$)")
+    axes[1].set_xlabel("Indice Osservazione")
+    axes[1].set_ylabel("Distanza di Cook ($D_i$)")
+    
+    # Annotate top 5 outliers
+    for idx in top_5_idx:
+        name = final_df.iloc[idx]['EmployeeName']
+        val = cooks_d[idx]
+        axes[1].annotate(
+            name, 
+            xy=(idx, val), 
+            xytext=(idx + n*0.02, val + 0.002),
+            arrowprops=dict(facecolor='black', arrowstyle='->', lw=0.8),
+            fontsize=8,
+            fontweight='bold',
+            bbox=dict(boxstyle='round,pad=0.2', fc='yellow', alpha=0.6)
+        )
+    axes[1].legend()
+    
+    plt.suptitle("Analisi Statistica di Diagnostica Avanzata: Leverage e Influenza (Distanza di Cook)", fontsize=16)
+    plt.tight_layout()
+    plt.savefig('leverage_cooks.png', dpi=150)
+    plt.close()
+    copy_to_artifacts('leverage_cooks.png')
+    
     # Heteroscedasticity: Breusch-Pagan Test
     print("\nRunning Breusch-Pagan Test...")
     from statsmodels.stats.diagnostic import het_breuschpagan
@@ -336,6 +436,26 @@ def main():
         opt_lambda = 0.0
     else:
         Y_trans = stats.boxcox(Y, lmbda=opt_lambda)
+        
+    # Generate Salary Distribution Plot (Raw vs Transformed)
+    print("\nGenerating Salary Distribution plot (raw vs transformed)...")
+    fig, axes = plt.subplots(1, 2, figsize=(14, 6))
+    
+    sns.histplot(Y, kde=True, ax=axes[0], color='#1f77b4', bins=50)
+    axes[0].set_title('Distribuzione Salari Originali (Raw TotalPay)')
+    axes[0].set_xlabel('Total Pay ($)')
+    axes[0].set_ylabel('Frequenza')
+    
+    sns.histplot(Y_trans, kde=True, ax=axes[1], color='#9467bd', bins=50)
+    axes[1].set_title(f'Distribuzione Salari Trasformati ($\lambda$ = {opt_lambda:.4f})')
+    axes[1].set_xlabel('Total Pay Trasformato')
+    axes[1].set_ylabel('Frequenza')
+    
+    plt.suptitle('Impatto della Trasformazione Box-Cox sulla Distribuzione Salariale', fontsize=16)
+    plt.tight_layout()
+    plt.savefig('salary_distribution.png', dpi=150)
+    plt.close()
+    copy_to_artifacts('salary_distribution.png')
         
     # Refit OLS with transformed Y
     model_trans = sm.OLS(Y_trans, Z)

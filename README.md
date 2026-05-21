@@ -108,11 +108,20 @@ $$\frac{\partial Y^{(0.597)}}{\partial \text{Gender}} = -82.65 + 83.77 \cdot \te
 
 ## 📈 Visual Diagnostic Showcase
 
-Tutti i grafici salvati in formato vettoriale ad alta risoluzione sono inseriti ed analizzati nel walkthrough:
+Tutti i grafici salvati in formato ad alta risoluzione sono inseriti ed analizzati dettagliatamente nel walkthrough:
 
-* **Log-Verosimiglianza Box-Cox**: Picco MLE stimato a $\lambda \approx 0.6$ (salvato in `boxcox_likelihood.png`).
-* **Confronto Residui OLS**: Riduzione drastica dell'andamento a ventaglio nei residui ed eccellente linearizzazione del Q-Q Plot dopo la trasformazione (salvati in `ols_diagnostics.png` e `transformed_diagnostics.png`).
-* **Ridge Shrinkage Path**: Visualizzazione della contrazione dei coefficienti al variare di $\lambda$ (salvato in `ridge_path.png`).
+### 1. Diagnostica delle Regressioni e Gauss-Markov
+* **Confronto Residui OLS (Modello Naïve)**: Riduzione drastica dell'andamento a ventaglio nei residui ed eccellente linearizzazione del Q-Q Plot dopo la trasformazione (salvati in `ols_diagnostics.png` e `transformed_diagnostics.png`).
+* **Profilo di Log-Verosimiglianza Box-Cox**: Picco MLE stimato a $\lambda = 0,5969$ (salvato in `boxcox_likelihood.png`).
+* **Impatto della Trasformazione Box-Cox**: Confronto istogramma e KDE tra i salari grezzi (fortemente asimmetrici) e i salari trasformati (simmetrici e normalizzati) (salvato in `salary_distribution.png`).
+* **Diagnostica Avanzata (Leverage & Distanza di Cook)**: Index plot dei valori di leva $h_{ii}$ con la soglia teorica $2(r+1)/n$ e index plot delle distanze di Cook $D_i$ con annotazione ed evidenziazione testuale dei top 5 outlier più influenti, come il Capo dei Vigili del Fuoco `Joanne Hayes-White` (salvato in `leverage_cooks.png`).
+
+### 2. Gap di Genere ed Effetti Interattivi
+* **Pay Gap per Macro-Categoria**: Boxplot della retribuzione totale per `JobCategory` e `Gender` che evidenzia graficamente i divari lavorativi settoriali (salvato in `gender_pay_gap_by_job.png`).
+* **Curva Salariale per Anzianità**: Grafico a linee dell'interazione tra genere e anzianità che mostra l'evoluzione del pay gap salariale nel corso del tempo (salvato in `seniority_pay_gap.png`).
+
+### 3. Regolarizzazione Ridge
+* **Ridge Shrinkage Path**: Visualizzazione analitica della contrazione dei coefficienti al variare del parametro di penalizzazione $\lambda$ (salvato in `ridge_path.png`).
 
 ---
 
