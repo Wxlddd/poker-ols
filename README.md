@@ -112,20 +112,49 @@ $$\frac{\partial Y^{(0.5)}}{\partial \text{Gender}} = -27.94 + 28.03 \cdot \text
 
 ## 📈 Visual Diagnostic Showcase
 
-Tutti i grafici salvati in formato ad alta risoluzione sono inseriti ed analizzati dettagliatamente nel walkthrough:
+Di seguito viene riportata la galleria completa delle visualizzazioni e dei test diagnostici generati dal nostro workflow statistico.
 
 ### 1. Diagnostica delle Regressioni e Gauss-Markov
-* **Confronto Residui OLS (Modello Naïve)**: Riduzione drastica dell'andamento a ventaglio nei residui ed eccellente linearizzazione del Q-Q Plot dopo la trasformazione (salvati in `ols_diagnostics.png` e `transformed_diagnostics.png`).
-* **Profilo di Log-Verosimiglianza Box-Cox**: Picco MLE stimato a $\lambda = 0,5969$ (salvato in `boxcox_likelihood.png`).
-* **Impatto della Trasformazione Box-Cox**: Confronto istogramma e KDE tra i salari grezzi (fortemente asimmetrici) e i salari trasformati (simmetrici e normalizzati) (salvato in `salary_distribution.png`).
-* **Diagnostica Avanzata (Leverage & Distanza di Cook)**: Index plot dei valori di leva $h\_{ii}$ con la soglia teorica $2(r+1)/n$ e index plot delle distanze di Cook $D\_i$ con annotazione ed evidenziazione testuale dei top 5 outlier più influenti, come il Capo dei Vigili del Fuoco `Joanne Hayes-White` (salvato in `leverage_cooks.png`).
+
+#### A. Diagnostica dei Residui del Modello Naïve
+Residui a ventaglio (eteroschedasticità) e allontanamento dalla normalità sulle code prima della trasformazione.
+![Diagnostica OLS Naïve](ols_diagnostics.png)
+
+#### B. Profilo di Log-Verosimiglianza Box-Cox
+Picco MLE del profilo di verosimiglianza stimato a $\lambda = 0.5969$, con l'arrotondamento accademico a $\lambda = 0.5$ per preservare l'interpretabilità.
+![Box-Cox Likelihood](boxcox_likelihood.png)
+
+#### C. Distribuzione Salariale Prima e Dopo la Trasformazione
+L'istogramma a sinistra mostra la forte asimmetria a destra della retribuzione originale. A destra, la trasformazione radice quadrata ($\lambda = 0.5$) normalizza e simmetrizza l'intera distribuzione.
+![Distribuzione Salariale Grezza vs Trasformata](salary_distribution.png)
+
+#### D. Diagnostica del Modello Trasformato ($\lambda = 0.5$)
+Dopo l'applicazione di $\sqrt{Y}$, la varianza dei residui si stabilizza e il Q-Q Plot risulta nettamente linearizzato.
+![Diagnostica Modello Trasformato](transformed_diagnostics.png)
+
+#### E. Diagnostica Avanzata (Leverage e Distanza di Cook)
+Leva individuale con la soglia teorica $2(r+1)/n$ (linea tratteggiata rossa) e distanze di Cook con etichettatura automatica dei primi 5 outlier più influenti, guidati da figure dirigenziali come `Joanne Hayes-White`.
+![Leva e Cook's Distance](leverage_cooks.png)
+
+---
 
 ### 2. Gap di Genere ed Effetti Interattivi
-* **Pay Gap per Macro-Categoria**: Boxplot della retribuzione totale per `JobCategory` e `Gender` che evidenzia graficamente i divari lavorativi settoriali (salvato in `gender_pay_gap_by_job.png`).
-* **Curva Salariale per Anzianità**: Grafico a linee dell'interazione tra genere e anzianità che mostra l'evoluzione del pay gap salariale nel corso del tempo (salvato in `seniority_pay_gap.png`).
+
+#### A. Pay Gap per Macro-Categoria Professionale
+Boxplot comparativo che illustra la distribuzione dei salari per genere e ruolo aziendale, evidenziando le asimmetrie distributive.
+![Gender Pay Gap per Settore](gender_pay_gap_by_job.png)
+
+#### B. Evoluzione del Gap Salariale con l'Anzianità
+Effetto dell'interazione tra genere ed anni di servizio. Le bande ombreggiate rappresentano gli intervalli di confidenza al 95%.
+![Evoluzione Pay Gap con Anzianità](seniority_pay_gap.png)
+
+---
 
 ### 3. Regolarizzazione Ridge
-* **Ridge Shrinkage Path**: Visualizzazione analitica della contrazione dei coefficienti al variare del parametro di penalizzazione $\lambda$ (salvato in `ridge_path.png`).
+
+#### Path di Contrazione Ridge (Shrinkage Path)
+Shrinkage analitico dei coefficienti standardizzati del modello al variare del parametro di regolarizzazione $\lambda \in [10^{-2}, 10^5]$.
+![Ridge Shrinkage Path](ridge_path.png)
 
 ---
 
