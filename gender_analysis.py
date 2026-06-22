@@ -26,7 +26,7 @@ ARTIFACT_DIR = r"C:\Users\loren\.gemini\antigravity\brain\2df59a04-f39e-41fb-b88
 
 def copy_to_artifacts(filename):
     if os.path.exists(filename) and os.path.exists(ARTIFACT_DIR):
-        shutil.copy(filename, os.path.join(ARTIFACT_DIR, filename))
+        shutil.copy(filename, os.path.join(ARTIFACT_DIR, os.path.basename(filename)))
         print(f"Copied {filename} to artifacts directory.")
 
 def main():
@@ -38,6 +38,7 @@ def main():
     # STEP 1: DATA PREPARATION & FEATURE ENGINEERING (Gender Classification)
     # -------------------------------------------------------------------------
     print("\n--- Step 1: Data Preparation & Cleaning ---")
+    os.makedirs('plots', exist_ok=True)
     if not os.path.exists("Salaries.csv"):
         raise FileNotFoundError("Salaries.csv not found in the workspace!")
         
@@ -140,9 +141,9 @@ def main():
     plt.ylabel('Total Pay ($)')
     plt.legend(title='Genere')
     plt.tight_layout()
-    plt.savefig('gender_pay_gap_by_job.png', dpi=150)
+    plt.savefig('plots/gender_pay_gap_by_job.png', dpi=150)
     plt.close()
-    copy_to_artifacts('gender_pay_gap_by_job.png')
+    copy_to_artifacts('plots/gender_pay_gap_by_job.png')
 
     # Generate Seniority Pay Gap Plot
     print("Generating Seniority Pay Gap Plot...")
@@ -163,9 +164,9 @@ def main():
     plt.xticks(sorted(plot_df['Seniority'].unique()))
     plt.legend(title='Genere')
     plt.tight_layout()
-    plt.savefig('seniority_pay_gap.png', dpi=150)
+    plt.savefig('plots/seniority_pay_gap.png', dpi=150)
     plt.close()
-    copy_to_artifacts('seniority_pay_gap.png')
+    copy_to_artifacts('plots/seniority_pay_gap.png')
     
     # -------------------------------------------------------------------------
     # STEP 2: DESIGN MATRIX (Z) SPECIFICATION & RANK VERIFICATION
@@ -334,9 +335,9 @@ def main():
     
     plt.suptitle("Analisi Statistica di Diagnostica Avanzata: Leverage e Influenza (Distanza di Cook)", fontsize=16)
     plt.tight_layout()
-    plt.savefig('leverage_cooks.png', dpi=150)
+    plt.savefig('plots/leverage_cooks.png', dpi=150)
     plt.close()
-    copy_to_artifacts('leverage_cooks.png')
+    copy_to_artifacts('plots/leverage_cooks.png')
     
     # Heteroscedasticity: Breusch-Pagan Test
     print("\nRunning Breusch-Pagan Test...")
@@ -407,9 +408,9 @@ def main():
     axes[1].set_ylabel('Studentized Residuals')
     
     plt.tight_layout()
-    plt.savefig('ols_diagnostics.png', dpi=150)
+    plt.savefig('plots/ols_diagnostics.png', dpi=150)
     plt.close()
-    copy_to_artifacts('ols_diagnostics.png')
+    copy_to_artifacts('plots/ols_diagnostics.png')
     
     # -------------------------------------------------------------------------
     # STEP 5: BOX-COX TRANSFORMATION FOR HETEROSCEDASTICITY
@@ -443,9 +444,9 @@ def main():
     plt.ylabel('Log-Likelihood')
     plt.legend()
     plt.tight_layout()
-    plt.savefig('boxcox_likelihood.png', dpi=150)
+    plt.savefig('plots/boxcox_likelihood.png', dpi=150)
     plt.close()
-    copy_to_artifacts('boxcox_likelihood.png')
+    copy_to_artifacts('plots/boxcox_likelihood.png')
     
     # Econometric custom transformation decision
     # Round optimal lambda to the nearest highly interpretable standard value (0.5 for square root)
@@ -470,9 +471,9 @@ def main():
     
     plt.suptitle('Impatto della Trasformazione Box-Cox sulla Distribuzione Salariale', fontsize=16)
     plt.tight_layout()
-    plt.savefig('salary_distribution.png', dpi=150)
+    plt.savefig('plots/salary_distribution.png', dpi=150)
     plt.close()
-    copy_to_artifacts('salary_distribution.png')
+    copy_to_artifacts('plots/salary_distribution.png')
         
     # Refit OLS with transformed Y
     model_trans = sm.OLS(Y_trans, Z)
@@ -537,9 +538,9 @@ def main():
     axes[1].set_ylabel('Studentized Residuals')
     
     plt.tight_layout()
-    plt.savefig('transformed_diagnostics.png', dpi=150)
+    plt.savefig('plots/transformed_diagnostics.png', dpi=150)
     plt.close()
-    copy_to_artifacts('transformed_diagnostics.png')
+    copy_to_artifacts('plots/transformed_diagnostics.png')
     
     # Normality: Shapiro-Wilk Test (on a subsample of 5000 residuals due to large N sensitivity and limits)
     print("\nRunning Shapiro-Wilk Normality Test on a random subsample of 5000 residuals (Transformed Model, lambda=0.5)...")
@@ -653,8 +654,8 @@ def main():
     Y_centered = Y_trans - np.mean(Y_trans)
     
     # Create grid of penalty parameters (alphas in ridge terminology)
-    # 100 values from 10^-2 to 10^5
-    alphas = np.logspace(-2, 5, 200)
+    # 200 values from 10^-2 to 10^10
+    alphas = np.logspace(-2, 10, 200)
     
     coef_list = []
     col_names = covariates.columns.tolist()
@@ -685,11 +686,11 @@ def main():
     plt.ylabel('Standardized Ridge Coefficients ($\hat{\\beta}_{RR}$)')
     plt.legend(bbox_to_anchor=(1.04, 1), loc="upper left", borderaxespad=0, fontsize=9)
     plt.tight_layout()
-    plt.savefig('ridge_path.png', dpi=150)
+    plt.savefig('plots/ridge_path.png', dpi=150)
     plt.close()
-    copy_to_artifacts('ridge_path.png')
+    copy_to_artifacts('plots/ridge_path.png')
     
-    print("\nRidge Path generated and saved to 'ridge_path.png'.")
+    print("\nRidge Path generated and saved to 'plots/ridge_path.png'.")
     print("Process complete!")
     print("=" * 70)
 
