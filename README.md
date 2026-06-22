@@ -7,13 +7,13 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg?style=for-the-badge)](https://opensource.org/licenses/MIT)
 
 > [!NOTE]
-> **Vetrina del Progetto Accademico**: Questo repository ospita un workflow econometrico e di economia del lavoro rigoroso in Python. Il lavoro è strutturato in due parti principali: una prima parte dedicata all'analisi OLS classica con trasformazione ottimale Box-Cox ($\lambda = 0.5$) e relativa diagnostica di Gauss-Markov, ed una seconda parte dedicata alle estensioni metodologiche (specifiche log-lineari $\lambda = 0$, test di Wald su combinazioni lineari di coefficienti, Decomposizione di Oaxaca-Blinder e analisi dei Bad Controls per studiare la segregazione occupazionale).
+> **Vetrina del Progetto Accademico**: Questo repository ospita un workflow econometrico e di economia del lavoro in Python. Il lavoro è strutturato in due parti principali: una prima parte dedicata all'analisi OLS classica con trasformazione ottimale Box-Cox ($\lambda = 0.5$) e relativa diagnostica di Gauss-Markov, ed una seconda parte dedicata all'analisi descrittiva e visualizzazione della **segregazione occupazionale**, evidenziata come driver fondamentale del divario retributivo anche dai benchmark di Machine Learning (XGBoost).
 
 ---
 
 ## 📐 Fondamenti Teorici e Teoremi Verificati
 
-Questo studio verifica rigorosamente le proprietà geometriche ed econometriche del modello lineare classico e le sue estensioni robuste.
+Questo studio verifica le proprietà geometriche ed econometriche del modello lineare classico.
 
 ### 1. Specificazione del Modello e Invertibilità
 Modelliamo la retribuzione totale $Y$ tramite regressione lineare multipla:
@@ -46,9 +46,9 @@ $$L(\lambda) = -\frac{n}{2} \ln(\text{Var}(Y^{(\lambda)})) + (\lambda - 1) \sum\
 
 ---
 
-## ## PARTE I: Analisi Econometrica Principale e Diagnostica (Box-Cox $\lambda = 0.5$)
+## PARTE I: Analisi Econometrica Principale e Diagnostica (Box-Cox $\lambda = 0.5$)
 
-In questa prima sezione viene presentata l'analisi principale originaria, condotta sulla scala Box-Cox arrotondata a $\lambda = 0.5$ per massimizzarne l'interpretabilità econometrica (trasformazione radice quadrata).
+In questa prima sezione viene presentata l'analisi principale, condotta sulla scala Box-Cox arrotondata a $\lambda = 0.5$ per massimizzarne l'interpretabilità econometrica (trasformazione radice quadrata).
 
 ### 1. Stime OLS e Standard Error Robusti (HC3)
 Il fitting dell'OLS sulla scala trasformata $Y^{(0.5)}$ con deviazioni standard robuste **HC3** restituisce le seguenti stime:
@@ -102,101 +102,6 @@ La contrazione analitica Ridge su covariate standardizzate (`ridge_path.png`) ri
 
 ---
 
-## ## PARTE II: Estensioni Metodologiche e Controlli di Robustezza ($\lambda = 0$, Oaxaca-Blinder, Bad Controls)
-
-In questa seconda sezione vengono illustrati i nuovi controlli di robustezza e le scomposizioni teoriche introdotte per elevare il rigore scientifico del modello.
-
-### 1. Controllo di Robustezza: Specifica Log-Lineare ($\lambda = 0$)
-Per confrontare le stime con la letteratura internazionale, stimiamo il modello sul logaritmo naturale del salario, interpretando i coefficienti come variazioni semielastiche.
-
-* **$R^2$ Rettificato**: **0,301**
-* **F-statistic Robust (HC3 VCE)**: **3.913** ($p\text{-value} = 0.000$)
-
-#### Tabella dei Coefficienti (Modello Log-Lineare $\lambda = 0$, HC3)
-| Covariata | Coefficiente | Dev. Standard (HC3) | Statistica z | p-value | Intervallo di Conf. 95% |
-| :--- | :---: | :---: | :---: | :---: | :---: |
-| **Intercept** | 10.9240 | 0.007 | 1477.145 | **0.000** | [10.909, 10.938] |
-| **Gender (Femmina)** | -0.1096 | 0.009 | -11.992 | **0.000** | [-0.127, -0.092] |
-| **Seniority** | 0.3062 | 0.008 | 40.559 | **0.000** | [0.291, 0.321] |
-| **Year_2012** | -0.2285 | 0.011 | -21.722 | **0.000** | [-0.249, -0.208] |
-| **Year_2013** | 0.0846 | 0.008 | 10.133 | **0.000** | [0.068, 0.101] |
-| **Year_2014** | -0.3377 | 0.013 | -26.984 | **0.000** | [-0.362, -0.313] |
-| **Job_Education** | -2.1719 | 0.019 | -113.754 | **0.000** | [-2.209, -2.134] |
-| **Job_Fire** | 0.8347 | 0.010 | 86.063 | **0.000** | [0.816, 0.854] |
-| **Job_Medical** | -0.2118 | 0.018 | -11.772 | **0.000** | [-0.247, -0.177] |
-| **Job_Police** | 0.6284 | 0.007 | 86.476 | **0.000** | [0.614, 0.643] |
-| **Gender x Seniority** | -0.0025 | 0.008 | -0.308 | 0.758 | [-0.018, 0.013] |
-| **Gender x Job_Education** | 0.0952 | 0.028 | 3.365 | **0.001** | [0.040, 0.151] |
-| **Gender x Job_Fire** | 0.0453 | 0.024 | 1.857 | 0.063 | [-0.003, 0.093] |
-| **Gender x Job_Medical** | -0.0138 | 0.022 | -0.631 | 0.528 | [-0.057, 0.029] |
-| **Gender x Job_Police** | -0.1543 | 0.015 | -10.569 | **0.000** | [-0.183, -0.126] |
-
----
-
-### 2. Verifica Rigorosa del Gap Netto nel Settore 'Education' (Section 1c)
-Verifichiamo formalmente se nel settore 'Education' il divario di genere netto $\theta = \beta\_{\text{Gender}} + \beta\_{\text{Gender-x-Education}}$ si annulla.
-Calcoliamo la varianza robusta della combinazione lineare:
-$$\text{Var}(\hat{\theta}) = \text{Var}(\hat{\beta}\_{\text{Gender}}) + \text{Var}(\hat{\beta}\_{\text{Gender-x-Education}}) + 2\text{Cov}(\hat{\beta}\_{\text{Gender}}, \hat{\beta}\_{\text{Gender-x-Education}})$$
-e testiamo l'ipotesi nulla $H\_0: \theta = 0$ con un test di Wald (Chi-quadro ad 1 grado di libertà).
-
-* **Modello Box-Cox ($\lambda = 0.5$)**:
-  * **Stima Puntuale $\hat{\theta}$**: $0.092882$ (radice quadrata di dollari)
-  * **Standard Error (Robust HC3)**: $2.235679$
-  * **Intervallo di Confidenza al 95%**: $[-4.288969, 4.474732]$
-  * **Statistica del Test di Wald ($\chi^2$)**: $0.0017$ | **p-value**: **$0.9669$**
-  * *Esito*: **Failing to reject H0**. Il gap netto nel settore Education è statistico zero.
-* **Modello Log-Lineare ($\lambda = 0$)**:
-  * **Stima Puntuale $\hat{\theta}$**: $-0.014383$ (pari a un divario del $-1.43\%$)
-  * **Standard Error (Robust HC3)**: $0.027280$
-  * **Intervallo di Confidenza al 95%**: $[-0.067851, 0.039084]$
-  * **Statistica del Test di Wald ($\chi^2$)**: $0.2780$ | **p-value**: **$0.5980$**
-  * *Esito*: **Failing to reject H0**. Anche nella scala logaritmica il gap netto è statisticamente nullo.
-
----
-
-### 3. Decomposizione Oaxaca-Blinder (Sezione 2a)
-Conduciamo la scomposizione classica del divario medio di log-retribuzione ($\overline{\ln(Y\_M)} - \overline{\ln(Y\_F)}$) per distinguere l'effetto delle caratteristiche individuali dalla discriminazione salariale pura.
-
-* **Divario di Log-Retribuzione Totale**: $0.283141$ log-points (corrisponde a un gap geometrico medio del **$32.73\%$** a favore degli uomini).
-* **Componente Spiegata (Endowment Effect)**: $0.166265$ log-points (**$58.72\%$** del gap totale). Rappresenta lo scarto salariale giustificato dalla diversa distribuzione di seniority e allocazione lavorativa nei macro-settori.
-* **Componente Non Spiegata (Discrimination/Coefficient Effect)**: $0.116877$ log-points (**$41.28\%$** del gap totale). Rappresenta il divario salariale residuo dovuto alla disparità di rendimento (coefficienti) a parità di caratteristiche medie, indicativo di discriminazione salariale o segregazione non osservata del **$12.39\%$** ($e^{0.116877}-1$).
-
-Di seguito viene mostrata la scomposizione grafica delle componenti del divario:
-
-![Decomposizione di Oaxaca-Blinder](oaxaca_decomposition.png)
-
----
-
-### 4. Analisi dei "Bad Controls" e Segregazione Occupazionale (Sezione 2c)
-Il macro-settore occupazionale è una scelta lavorativa potenzialmente determinata a valle del genere (segregazione all'ingresso). Di conseguenza, l'inserimento di dummy settoriali agisce come **bad control** (Angrist & Pischke, 2009), assorbendo parte del Gender Pay Gap sistemico.
-Confrontiamo il coefficiente di genere $\beta\_{\text{Gender}}$ tra il modello Unadjusted (Short) e i modelli Adjusted (Long):
-
-#### Tabella Comparativa dei Coefficienti di Genere (Box-Cox $\lambda = 0.5$)
-| Modello | Coefficiente `Gender` | Dev. Standard (HC3) | Statistica z | p-value | Conf. Int. 95% |
-| :--- | :---: | :---: | :---: | :---: | :---: |
-| **1. Unadjusted (Short Model)** | -62.283391 | 1.146297 | -54.3344 | 0.000 | [-64.5301, -60.0367] |
-| **2. Adjusted (Long, No Interactions)** | -30.286660 | 1.015031 | -29.8382 | 0.000 | [-32.2761, -28.2972] |
-| **3. Adjusted (Long, Saturated)** | -27.941663 | 1.475688 | -18.9347 | 0.000 | [-30.8340, -25.0494] |
-* **Quota di gap spiegata dal Sorting Occupazionale**: **$51.37\%$**
-
-#### Tabella Comparativa dei Coefficienti di Genere (Log-Lineare $\lambda = 0$)
-| Modello | Coefficiente `Gender` | Dev. Standard (HC3) | Statistica z | p-value | Conf. Int. 95% |
-| :--- | :---: | :---: | :---: | :---: | :---: |
-| **1. Unadjusted (Short Model)** | -0.279236 | 0.006983 | -39.9900 | 0.000 | [-0.2929, -0.2656] |
-| **2. Adjusted (Long, No Interactions)** | -0.119660 | 0.006256 | -19.1271 | 0.000 | [-0.1319, -0.1074] |
-| **3. Adjusted (Long, Saturated)** | -0.109586 | 0.009138 | -11.9918 | 0.000 | [-0.1275, -0.0917] |
-* **Quota di gap spiegata dal Sorting Occupazionale**: **$57.15\%$**
-
-Il grafico sottostante illustra graficamente la contrazione del coefficiente di genere all'aggiunta dei controlli settoriali, evidenziando il ruolo di assorbimento del gap operato dal sorting:
-
-![Confronto Coefficienti Gender e Bad Controls](bad_controls_comparison.png)
-
-> [!WARNING]
-> Poiché oltre il **$57\%$** (nel modello log-lineare) del divario salariale è spiegato dallo smistamento degli impiegati nei diversi macro-settori, l'inserimento dei controlli settoriali riduce artificialmente il gap di genere dal $-27.9\%$ al $-12.0\%$. 
-> Se la collocazione lavorativa è influenzata da discriminazione o barriere all'accesso (es. minor tasso di assunzione femminile nei dipartimenti Fire o Police), le dummy settoriali mascherano la discriminazione salariale totale e agiscono da bad controls. Il vero divario salariale di genere strutturale complessivo è espresso dal modello Short (Unadjusted).
-
----
-
 ### 5. Nested F-Test / Wald Joint Significance
 Confrontando il modello saturo con quello ridotto (escludendo le variabili di genere ed interazioni):
 * **Classical F-Statistic** (omocedastico): $200.03$ | $p\text{-value} < 0.0001$
@@ -205,11 +110,9 @@ Confrontando il modello saturo con quello ridotto (escludendo le variabili di ge
 
 ---
 
-## 📈 Visual Diagnostic Showcase
+### 6. Visual Diagnostic Showcase (Parte I)
 
-Di seguito viene riportata la galleria delle visualizzazioni e dei test diagnostici del modello OLS principale (Parte I).
-
-### 1. Diagnostica delle Regressioni e Gauss-Markov
+Di seguito viene riportata la galleria delle visualizzazioni e dei test diagnostici del modello OLS principale.
 
 #### A. Diagnostica dei Residui del Modello Naïve
 Residui a ventaglio (eteroschedasticità) e allontanamento dalla normalità sulle code prima della trasformazione.
@@ -231,31 +134,58 @@ Dopo l'applicazione di $\sqrt{Y}$, la varianza dei residui si stabilizza e il Q-
 Leva individuale con la soglia teorica $2(r+1)/n$ (linea tratteggiata rossa) e distanze di Cook con etichettatura automatica dei primi 5 outlier più influenti, guidati da figure dirigenziali come `Joanne Hayes-White`.
 ![Leva e Cook's Distance](leverage_cooks.png)
 
----
-
-### 2. Gap di Genere ed Effetti Interattivi (Parte I)
-
-#### A. Pay Gap per Macro-Categoria Professionale
+#### F. Pay Gap per Macro-Categoria Professionale
 Boxplot comparativo che illustra la distribuzione dei salari per genere e ruolo aziendale, evidenziando le asimmetrie distributive.
 ![Gender Pay Gap per Settore](gender_pay_gap_by_job.png)
 
-#### B. Evoluzione del Gap Salariale con l'Anzianità
+#### G. Evoluzione del Gap Salariale con l'Anzianità
 Effetto dell'interazione tra genere ed anni di servizio. Le bande ombreggiate rappresentano gli intervalli di confidenza al 95%.
 ![Evoluzione Pay Gap con Anzianità](seniority_pay_gap.png)
 
----
-
-### 3. Regolarizzazione Ridge
-
-#### Path di Contrazione Ridge (Shrinkage Path)
+#### H. Path di Contrazione Ridge (Shrinkage Path)
 Shrinkage analitico dei coefficienti standardizzati del modello al variare del parametro di regolarizzazione $\lambda \in [10^{-2}, 10^5]$.
 ![Ridge Shrinkage Path](ridge_path.png)
 
 ---
 
+## PARTE II: Segregazione Occupazionale come Driver Principale
+
+Un recente benchmark di Machine Learning basato su XGBoost ha confermato i risultati del nostro modello OLS principale: **il Gender Pay Gap è guidato principalmente dalla segregazione occupazionale a monte (la scelta e la distribuzione dei settori) piuttosto che da dinamiche salariali all'interno dei singoli ruoli**. 
+
+Per dare evidenza empirica immediata a questa dinamica strutturale, presentiamo in questa sezione le statistiche descrittive focalizzate interamente sulla segregazione occupazionale nel mercato del lavoro di San Francisco.
+
+### 1. Distribuzione di Genere e Retribuzione per Settore
+
+La tabella seguente riassume la distribuzione di genere all'interno di ciascuna macro-categoria lavorativa e il salario medio non trasformato (`TotalPay`) del settore, ordinato dal settore a maggior densità maschile a quello a maggior densità femminile:
+
+| Settore | N. Maschi | % Maschi | N. Femmine | % Femmine | Salario Medio Settore |
+| :--- | :---: | :---: | :---: | :---: | :---: |
+| **Fire** | 3.796 | 83,76% | 736 | 16,24% | $146.152,49 |
+| **Police** | 12.795 | 77,46% | 3.723 | 22,54% | $118.044,70 |
+| **Other / Baseline** | 45.626 | 59,35% | 31.255 | 40,65% | $74.774,36 |
+| **Education** | 5.059 | 53,80% | 4.345 | 46,20% | $11.695,76 |
+| **Medical** | 4.886 | 25,76% | 14.085 | 74,24% | $70.321,23 |
+| **Totale Forza Lavoro** | **72.162** | **57,13%** | **54.144** | **42,87%** | **$74.768,32** |
+
+> [!IMPORTANT]
+> **Implicazioni dei Dati**:
+> - I settori a **maggioranza maschile** (**Fire** con 83,76% uomini e **Police** con 77,46% uomini) sono caratterizzati dai livelli retributivi medi più alti del dataset (rispettivamente **$146.152,49** e **$118.044,70**).
+> - Al contrario, il settore a **forte densità femminile** (**Medical** con 74,24% donne) presenta un salario medio di **$70.321,23**, circa la metà rispetto al settore Fire.
+> - Questa disparità nella distribuzione tra settori (sorting occupazionale) spiega la maggior parte del gap salariale osservato a livello aggregato, confermando empiricamente che le differenze salariali tra generi traggono origine principalmente da barriere o preferenze nella fase di allocazione settoriale iniziale.
+
+---
+
+### 2. Visualizzazione Grafica della Segregazione
+
+Il grafico sottostante (`occupational_segregation.png`) rappresenta visivamente il bilanciamento di genere all'interno di ciascun settore, evidenziando il forte sbilanciamento distributivo (utilizzando la palette di colori istituzionale: blu per gli uomini, rosa per le donne):
+
+![Segregazione Occupazionale per Settore](occupational_segregation.png)
+
+---
+
 ## 🚀 Guida di Esecuzione e Replicabilità
 
-Per riprodurre in autonomia l'intero workflow statistico ed econometrico, esegui il file principale nel terminale:
+Per riprodurre in autonomia l'intero workflow statistico ed descrittivo, esegui il file principale nel terminale:
 
 ```bash
 # Esegue il workflow completo all'interno dell'ambiente virtuale uv
@@ -265,8 +195,8 @@ uv run gender_analysis.py
 Questo avvierà in modo sequenziale:
 1. La pulizia dei dati e l'estrazione dei nomi di battesimo da `Salaries.csv`.
 2. La classificazione automatica e ottimizzata del genere.
-3. La stima delle regressioni OLS con relativi test diagnostici e scomposizioni matriciali.
-4. L'esecuzione dei test di robustezza net gap, la decomposizione Oaxaca-Blinder e l'analisi dei bad controls, salvando i due nuovi grafici diagnostici (`oaxaca_decomposition.png` e `bad_controls_comparison.png`).
+3. La stima del modello OLS trasformato Box-Cox ($\lambda = 0.5$) con relativi test diagnostici e scomposizioni.
+4. Il calcolo delle statistiche descrittive sulla segregazione occupazionale e la generazione del relativo stacked bar chart (`occupational_segregation.png`).
 
 ---
 

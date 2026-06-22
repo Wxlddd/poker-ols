@@ -480,14 +480,6 @@ def main():
     print("\n--- OLS SUMMARY ON TRANSFORMED VARIABLE (lambda = 0.5) ---")
     print(results_trans.summary())
     
-    # Fit OLS with log-linear specification (lambda = 0)
-    print("\nFitting log-linear model (lambda = 0) as robustness check...")
-    Y_log = np.log(Y)
-    model_log = sm.OLS(Y_log, Z)
-    results_log = model_log.fit(cov_type='HC3')
-    print("\n--- OLS SUMMARY ON LOG-LINEAR VARIABLE (lambda = 0) ---")
-    print(results_log.summary())
-    
     y_hat_trans = results_trans.fittedvalues
     residuals_trans = Y_trans - y_hat_trans
     
@@ -708,256 +700,103 @@ def main():
     print("\nRidge Path generated and saved to 'ridge_path.png'.")
     
     # -------------------------------------------------------------------------
-    # STEP 8: RIGOROUS NET GAP VERIFICATION IN SECTORS (Section 1c)
+    # STEP 8: OCCUPATIONAL SEGREGATION DESCRIPTIVE STATISTICS
     # -------------------------------------------------------------------------
     print("\n" + "=" * 70)
-    print("--- Step 8: Rigorous Net Gap Verification in 'Education' (Section 1c) ---")
+    print("--- Step 8: Occupational Segregation Descriptive Statistics ---")
     print("=" * 70)
     
-    def test_education_net_gap(results, model_name):
-        cov_matrix = results.cov_params()
+    # Create a grouped column where Admin and Other are merged into 'Other / Baseline'
+    final_df['JobCategory_Seg'] = final_df['JobCategory'].replace({'Admin': 'Other / Baseline', 'Other': 'Other / Baseline'})
+    
+    def print_occupational_segregation_table(df):
+        total_males = np.sum(df['Gender'] == 0)
+        total_females = np.sum(df['Gender'] == 1)
         
-        beta_gender = results.params['Gender']
-        beta_inter = results.params['Gender_x_Job_Education']
+        seg_stats = []
+        categories = ['Police', 'Fire', 'Medical', 'Education', 'Other / Baseline']
         
-        net_gap = beta_gender + beta_inter
-        
-        var_gender = cov_matrix.loc['Gender', 'Gender']
-        var_inter = cov_matrix.loc['Gender_x_Job_Education', 'Gender_x_Job_Education']
-        cov_gender_inter = cov_matrix.loc['Gender', 'Gender_x_Job_Education']
-        
-        var_net = var_gender + var_inter + 2 * cov_gender_inter
-        se_net = np.sqrt(var_net)
-        
-        hypothesis = "Gender + Gender_x_Job_Education = 0"
-        wald_test_res = results.wald_test(hypothesis, use_f=False)
-        wald_stat = float(np.asarray(wald_test_res.statistic).flat[0])
-        p_val = float(np.asarray(wald_test_res.pvalue).flat[0])
-        
-        z_crit = stats.norm.ppf(0.975)
-        ci_lower = net_gap - z_crit * se_net
-        ci_upper = net_gap + z_crit * se_net
-        
-        print(f"\nNet Gap Results for Model: {model_name}")
-        print(f"  Point Estimate (beta_Gender + beta_Gender_x_Job_Education): {net_gap:.6f}")
-        print(f"  Analytical Standard Error (Robust): {se_net:.6f}")
-        print(f"  95% Confidence Interval: [{ci_lower:.6f}, {ci_upper:.6f}]")
-        print(f"  Wald Test Statistic (Chi2, 1 df): {wald_stat:.4f}")
-        print(f"  p-value: {p_val:.8e}")
-        if p_val < 0.05:
-            print("  Result: Reject H0! The net gap in Education is statistically different from zero.")
-        else:
-            print("  Result: Fail to reject H0. The net gap in Education is NOT statistically different from zero.")
+        for cat in categories:
+            sub = df[df['JobCategory_Seg'] == cat]
+            n_male = np.sum(sub['Gender'] == 0)
+            n_female = np.sum(sub['Gender'] == 1)
+            n_total = n_male + n_female
             
-        return {
-            'net_gap': net_gap,
-            'se': se_net,
-            'stat': wald_stat,
-            'pvalue': p_val,
-            'ci': (ci_lower, ci_upper)
-        }
-        
-    print("\nCalculating Net Gap in Education for Transformed Model (lambda = 0.5):")
-    net_gap_trans = test_education_net_gap(results_trans, "Box-Cox (lambda = 0.5)")
-    
-    print("\nCalculating Net Gap in Education for Log-Linear Model (lambda = 0):")
-    net_gap_log = test_education_net_gap(results_log, "Log-Linear (lambda = 0)")
-    
-    # -------------------------------------------------------------------------
-    # STEP 9: OAXACA-BLINDER DECOMPOSITION (Section 2a)
-    # -------------------------------------------------------------------------
-    print("\n" + "=" * 70)
-    print("--- Step 9: Oaxaca-Blinder Decomposition (Section 2a) ---")
-    print("=" * 70)
-    
-    males_mask = (final_df['Gender'].values == 0)
-    females_mask = (final_df['Gender'].values == 1)
-    
-    Y_M_log = Y_log[males_mask]
-    Y_F_log = Y_log[females_mask]
-    
-    ob_covariates = [
-        'Intercept', 'Seniority', 'Year_2012', 'Year_2013', 'Year_2014',
-        'Job_Education', 'Job_Fire', 'Job_Medical', 'Job_Police'
-    ]
-    
-    X_M = Z.loc[males_mask, ob_covariates]
-    X_F = Z.loc[females_mask, ob_covariates]
-    
-    model_m = sm.OLS(Y_M_log, X_M)
-    results_m = model_m.fit(cov_type='HC3')
-    
-    model_f = sm.OLS(Y_F_log, X_F)
-    results_f = model_f.fit(cov_type='HC3')
-    
-    mean_X_M = X_M.mean()
-    mean_X_F = X_F.mean()
-    
-    beta_M = results_m.params
-    beta_F = results_f.params
-    
-    mean_Y_M_log = np.mean(Y_M_log)
-    mean_Y_F_log = np.mean(Y_F_log)
-    total_gap = mean_Y_M_log - mean_Y_F_log
-    
-    endowment = np.dot(mean_X_M - mean_X_F, beta_M)
-    discrimination = np.dot(mean_X_F, beta_M - beta_F)
-    
-    decomp_sum = endowment + discrimination
-    diff_check = total_gap - decomp_sum
-    
-    pct_endowment = (endowment / total_gap) * 100
-    pct_discrimination = (discrimination / total_gap) * 100
-    
-    print(f"\nOaxaca-Blinder Decomposition Results (Specification: ln(Y)):")
-    print(f"  Mean Log Pay (Males):   {mean_Y_M_log:.6f} (equivalent to ${np.exp(mean_Y_M_log):,.2f} geometric mean)")
-    print(f"  Mean Log Pay (Females): {mean_Y_F_log:.6f} (equivalent to ${np.exp(mean_Y_F_log):,.2f} geometric mean)")
-    print(f"  Total Log Pay Gap:      {total_gap:.6f} (equivalent to {np.expm1(total_gap)*100:.2f}% gap)")
-    print("-" * 50)
-    print(f"  1. Explained Component (Endowment Effect):     {endowment:.6f} ({pct_endowment:.2f}% of total gap)")
-    print(f"  2. Unexplained Component (Discrimination):     {discrimination:.6f} ({pct_discrimination:.2f}% of total gap)")
-    print(f"  Sum of Components:                             {decomp_sum:.6f}")
-    print(f"  Check Difference (Total Gap - Sum):            {diff_check:.8e}")
-    
-    # Generate Oaxaca-Blinder Decomposition Plot
-    print("\nGenerating Oaxaca-Blinder Decomposition Plot...")
-    plt.figure(figsize=(8, 4))
-    categories = ['Endowment Effect\n(Spiegata)', 'Discrimination Effect\n(Non Spiegata)']
-    shares = [pct_endowment, pct_discrimination]
-    colors = ['#1f77b4', '#e377c2']
-    
-    bars = plt.barh(categories, shares, color=colors, height=0.45, edgecolor='none')
-    plt.xlim(0, 100)
-    plt.xlabel('Quota del Divario Totale (%)')
-    plt.title('Decomposizione di Oaxaca-Blinder (Specifica Log-Lineare $\ln(Y)$)')
-    
-    for bar, share in zip(bars, shares):
-        width = bar.get_width()
-        plt.text(width + 2, bar.get_y() + bar.get_height()/2, f'{share:.2f}%', 
-                 va='center', ha='left', fontweight='bold', fontsize=10)
-                
-    plt.tight_layout()
-    plt.savefig('oaxaca_decomposition.png', dpi=150)
-    plt.close()
-    copy_to_artifacts('oaxaca_decomposition.png')
-    
-    # -------------------------------------------------------------------------
-    # STEP 10: BAD CONTROLS & OCCUPATIONAL SEGREGATION (Section 2c)
-    # -------------------------------------------------------------------------
-    print("\n" + "=" * 70)
-    print("--- Step 10: Bad Controls & Occupational Segregation (Section 2c) ---")
-    print("=" * 70)
-    
-    short_covs = ['Intercept', 'Gender', 'Seniority', 'Year_2012', 'Year_2013', 'Year_2014']
-    Z_short = Z[short_covs]
-    
-    no_inter_covs = [
-        'Intercept', 'Gender', 'Seniority', 'Year_2012', 'Year_2013', 'Year_2014',
-        'Job_Education', 'Job_Fire', 'Job_Medical', 'Job_Police'
-    ]
-    Z_no_inter = Z[no_inter_covs]
-    
-    results_short_trans = sm.OLS(Y_trans, Z_short).fit(cov_type='HC3')
-    results_no_inter_trans = sm.OLS(Y_trans, Z_no_inter).fit(cov_type='HC3')
-    
-    results_short_log = sm.OLS(Y_log, Z_short).fit(cov_type='HC3')
-    results_no_inter_log = sm.OLS(Y_log, Z_no_inter).fit(cov_type='HC3')
-    
-    def compare_gender_coefficients(results_dict, scale_name):
-        print(f"\nComparative Table of Gender Coefficients (Scale: {scale_name})")
-        print("-" * 115)
-        print(f"{'Model Type':<45} | {'Coef':<10} | {'Std Error':<10} | {'t-stat':<10} | {'p-value':<10} | {'95% Conf. Interval':<20}")
-        print("-" * 115)
-        
-        table_data = []
-        for model_label, res in results_dict.items():
-            coef = res.params['Gender']
-            se = res.bse['Gender']
-            t_stat = res.tvalues['Gender']
-            p_val = res.pvalues['Gender']
-            ci = res.conf_int().loc['Gender']
-            print(f"{model_label:<45} | {coef:<10.6f} | {se:<10.6f} | {t_stat:<10.4f} | {p_val:<10.4e} | [{ci[0]:.6f}, {ci[1]:.6f}]")
-            table_data.append({
-                'model': model_label,
-                'coef': coef,
-                'se': se,
-                't_stat': t_stat,
-                'p_val': p_val,
-                'ci_lower': ci[0],
-                'ci_upper': ci[1]
+            pct_male = n_male / n_total * 100 if n_total > 0 else 0
+            pct_female = n_female / n_total * 100 if n_total > 0 else 0
+            
+            share_male = n_male / total_males * 100 if total_males > 0 else 0
+            share_female = n_female / total_females * 100 if total_females > 0 else 0
+            
+            mean_pay = sub['TotalPay'].mean()
+            
+            seg_stats.append({
+                'Settore': cat,
+                'N_Male': n_male,
+                'Pct_Male': pct_male,
+                'N_Female': n_female,
+                'Pct_Female': pct_female,
+                'Share_Male': share_male,
+                'Share_Female': share_female,
+                'Mean_Pay': mean_pay
             })
-        print("-" * 115)
-        return table_data
+            
+        seg_df = pd.DataFrame(seg_stats)
+        # Sort from highest male density to highest female density
+        seg_df = seg_df.sort_values(by='Pct_Male', ascending=False).reset_index(drop=True)
         
-    trans_models = {
-        '1. Unadjusted (Short Model)': results_short_trans,
-        '2. Adjusted (Long Model, No Gender Interactions)': results_no_inter_trans,
-        '3. Adjusted (Long Model, Saturated with Interactions)': results_trans
-    }
+        print("\n" + "=" * 115)
+        print("  TABELLA RIASSUNTIVA: SEGREGAZIONE OCCUPAZIONALE E RETRIBUZIONE MEDIA PER SETTORE")
+        print("=" * 115)
+        print(f"{'Settore':<20} | {'N. Maschi':<12} | {'% Maschi':<10} | {'Quota M':<10} | {'N. Femmine':<12} | {'% Femmine':<10} | {'Quota F':<10} | {'Salario Medio':<15}")
+        print("-" * 115)
+        for idx, row in seg_df.iterrows():
+            print(f"{row['Settore']:<20} | {row['N_Male']:<12,d} | {row['Pct_Male']:<10.2f}% | {row['Share_Male']:<10.2f}% | {row['N_Female']:<12,d} | {row['Pct_Female']:<10.2f}% | {row['Share_Female']:<10.2f}% | ${row['Mean_Pay']:<14,.2f}")
+        print("-" * 115)
+        print(f"Total Males in Dataset: {total_males:,} | Total Females in Dataset: {total_females:,}")
+        print("=" * 115)
+        
+        return seg_df
+        
+    seg_df = print_occupational_segregation_table(final_df)
     
-    log_models = {
-        '1. Unadjusted (Short Model)': results_short_log,
-        '2. Adjusted (Long Model, No Gender Interactions)': results_no_inter_log,
-        '3. Adjusted (Long Model, Saturated with Interactions)': results_log
-    }
+    # -------------------------------------------------------------------------
+    # STEP 9: OCCUPATIONAL SEGREGATION VISUALIZATION
+    # -------------------------------------------------------------------------
+    print("\n" + "=" * 70)
+    print("--- Step 9: Visualizing Occupational Segregation ---")
+    print("=" * 70)
     
-    print("\n--- BOX-COX MODELS (lambda = 0.5) ---")
-    tbl_trans = compare_gender_coefficients(trans_models, "Box-Cox lambda=0.5")
+    plt.figure(figsize=(10, 6))
     
-    print("\n--- LOG-LINEAR MODELS (lambda = 0) ---")
-    tbl_log = compare_gender_coefficients(log_models, "Log-Linear lambda=0")
+    categories = seg_df['Settore'].tolist()
+    pct_males = seg_df['Pct_Male'].tolist()
+    pct_females = seg_df['Pct_Female'].tolist()
     
-    sorting_trans = (tbl_trans[0]['coef'] - tbl_trans[1]['coef']) / tbl_trans[0]['coef'] * 100
-    sorting_log = (tbl_log[0]['coef'] - tbl_log[1]['coef']) / tbl_log[0]['coef'] * 100
+    color_male = '#1f77b4'
+    color_female = '#e377c2'
     
-    print(f"\nOccupational Sorting / Bad Controls Analysis:")
-    print(f"  - Box-Cox (lambda = 0.5):")
-    print(f"    Unadjusted Gender Gap: {tbl_trans[0]['coef']:.6f}")
-    print(f"    Adjusted Gender Gap (no interactions): {tbl_trans[1]['coef']:.6f}")
-    print(f"    Percentage of gap explained by occupational sorting: {sorting_trans:.2f}%")
-    print(f"  - Log-Linear (lambda = 0):")
-    print(f"    Unadjusted Gender Gap: {tbl_log[0]['coef']:.6f}")
-    print(f"    Adjusted Gender Gap (no interactions): {tbl_log[1]['coef']:.6f}")
-    print(f"    Percentage of gap explained by occupational sorting: {sorting_log:.2f}%")
+    bars_male = plt.barh(categories, pct_males, color=color_male, label='Uomini (0)', edgecolor='none', height=0.55)
+    bars_female = plt.barh(categories, pct_females, left=pct_males, color=color_female, label='Donne (1)', edgecolor='none', height=0.55)
     
-    # Generate Bad Controls / Sorting Comparison Plot
-    print("\nGenerating Bad Controls Comparison Plot...")
-    fig, axes = plt.subplots(1, 2, figsize=(14, 6))
+    plt.xlim(0, 100)
+    plt.xlabel('Percentuale (%)')
+    plt.title('Segregazione Occupazionale: Bilanciamento di Genere per Settore\n(Ordinato da massima densità maschile a massima densità femminile)')
+    plt.legend(loc='lower left', frameon=True)
     
-    # Box-Cox model coefficients
-    models_label = ['1. Unadjusted\n(Short)', '2. Adjusted\n(No Inter.)', '3. Adjusted\n(Saturated)']
-    coefs_trans = [tbl_trans[0]['coef'], tbl_trans[1]['coef'], tbl_trans[2]['coef']]
-    errors_trans = [
-        (tbl_trans[i]['coef'] - tbl_trans[i]['ci_lower'], tbl_trans[i]['ci_upper'] - tbl_trans[i]['coef'])
-        for i in range(3)
-    ]
-    yerr_trans = np.array(errors_trans).T
+    plt.gca().invert_yaxis()
     
-    axes[0].errorbar(models_label, coefs_trans, yerr=yerr_trans, fmt='o', color='#9467bd', 
-                     ecolor='#9467bd', elinewidth=2, capsize=6, markersize=8)
-    axes[0].axhline(0, color='red', linestyle='--', linewidth=1)
-    axes[0].set_title('Coefficienti Gender in Scala Box-Cox ($\lambda = 0.5$)')
-    axes[0].set_ylabel(r'Stima Coefficiente Gender ($\hat{\beta}$)')
-    
-    # Log-Linear model coefficients
-    coefs_log = [tbl_log[0]['coef'], tbl_log[1]['coef'], tbl_log[2]['coef']]
-    errors_log = [
-        (tbl_log[i]['coef'] - tbl_log[i]['ci_lower'], tbl_log[i]['ci_upper'] - tbl_log[i]['coef'])
-        for i in range(3)
-    ]
-    yerr_log = np.array(errors_log).T
-    
-    axes[1].errorbar(models_label, coefs_log, yerr=yerr_log, fmt='o', color='#2ca02c', 
-                     ecolor='#2ca02c', elinewidth=2, capsize=6, markersize=8)
-    axes[1].axhline(0, color='red', linestyle='--', linewidth=1)
-    axes[1].set_title('Coefficienti Gender in Scala Log-Lineare ($\lambda = 0$)')
-    axes[1].set_ylabel(r'Stima Coefficiente Gender ($\hat{\beta}$)')
-    
-    plt.suptitle('Confronto dei Coefficienti Gender ed Effetto dei Bad Controls', fontsize=16)
+    for i in range(len(categories)):
+        if pct_males[i] > 8:
+            plt.text(pct_males[i]/2, i, f'{pct_males[i]:.1f}%', va='center', ha='center', color='white', fontweight='bold', fontsize=10)
+        if pct_females[i] > 8:
+            plt.text(pct_males[i] + pct_females[i]/2, i, f'{pct_females[i]:.1f}%', va='center', ha='center', color='white', fontweight='bold', fontsize=10)
+            
     plt.tight_layout()
-    plt.savefig('bad_controls_comparison.png', dpi=150)
+    plt.savefig('occupational_segregation.png', dpi=150)
     plt.close()
-    copy_to_artifacts('bad_controls_comparison.png')
+    copy_to_artifacts('occupational_segregation.png')
+    print("Saved occupational_segregation.png and copied to artifacts.")
     
     print("\nProcess complete!")
     print("=" * 70)
