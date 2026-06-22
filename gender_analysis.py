@@ -684,6 +684,28 @@ def main():
     plt.close()
     copy_to_artifacts('plots/shap_summary.png')
     
+    # SHAP Bar Plot (Feature Importance)
+    plt.figure(figsize=(10, 6))
+    shap.summary_plot(shap_values, X_test_full, plot_type="bar", show=False, color='#1f77b4')
+    plt.title('SHAP Feature Importance (Bar)')
+    plt.tight_layout()
+    plt.savefig('plots/shap_bar.png', dpi=150)
+    plt.close()
+    copy_to_artifacts('plots/shap_bar.png')
+    
+    # XGBoost: Predicted vs Actual Plot
+    plt.figure(figsize=(8, 8))
+    sns.scatterplot(x=Y_test, y=y_pred_xgb, alpha=0.3, edgecolor='none', color='#2ca02c')
+    plt.plot([Y_test.min(), Y_test.max()], [Y_test.min(), Y_test.max()], 'r--', lw=2)
+    plt.xlabel('Salario Reale ($)')
+    plt.ylabel('Salario Predetto da XGBoost ($)')
+    plt.title('XGBoost: Previsto vs Reale (Out-of-Sample)')
+    plt.tight_layout()
+    plt.savefig('plots/xgb_pred_vs_actual.png', dpi=150)
+    plt.close()
+    copy_to_artifacts('plots/xgb_pred_vs_actual.png')
+
+    
     
 
     # --- Percorso B: Double Machine Learning (DML) ---

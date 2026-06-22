@@ -43,6 +43,9 @@ $$D\_i = \frac{t\_i^2}{r+1} \left( \frac{h\_{ii}}{1 - h\_{ii}} \right)$$
 dove $t\_i$ rappresenta il residuo studentizzato internamente:
 $$t\_i = \frac{\hat{\varepsilon}\_i}{\hat{\sigma} \sqrt{1 - h\_{ii}}}$$
 
+![Leva e Cook's Distance](plots/leverage_cooks.png)
+*Leva individuale con la soglia teorica $2(r+1)/n$ (linea tratteggiata rossa) e distanze di Cook con etichettatura automatica dei primi 5 outlier più influenti.*
+
 ### 4. Trasformazione Box-Cox per la Stabilizzazione della Varianza
 In presenza di eteroschedasticità ($Var(\vec{\varepsilon}) \neq \sigma^2 I$), applichiamo la trasformazione di potenza di **Box-Cox** sulla risposta continua $Y$ (strettamente positiva) per stabilizzare la varianza e ripristinare la gaussianità dei residui:
 $$Y^{(\lambda)} = \begin{cases} \frac{Y^\lambda - 1}{\lambda} & \text{se } \lambda \neq 0 \\ \ln(Y) & \text{se } \lambda = 0 \end{cases}$$
@@ -51,6 +54,12 @@ $$L(\lambda) = -\frac{n}{2} \ln(\text{Var}(Y^{(\lambda)})) + (\lambda - 1) \sum\
 
 > [!IMPORTANT]
 > **Scelta Econometrica Consapevole ($\lambda = 0.5$)**: Sebbene la stima puntuale della log-verosimiglianza indichi $\lambda = 0.5969$, per motivi di rigorosa interpretabilità econometrica abbiamo impostato **$\lambda = 0.5$**. Questo ci consente di operare su una trasformazione standard standardizzabile (trasformazione radice quadrata, $\sqrt{Y}$), evitando coefficienti astratti che nuocerebbero alla leggibilità del modello, in perfetto accordo con le migliori pratiche accademiche.
+
+![Box-Cox Likelihood](plots/boxcox_likelihood.png)
+*Picco MLE del profilo di verosimiglianza stimato a $\lambda = 0.5969$, con l'arrotondamento accademico a $\lambda = 0.5$.*
+
+![Distribuzione Salariale Grezza vs Trasformata](plots/salary_distribution.png)
+*L'istogramma a sinistra mostra la forte asimmetria a destra della retribuzione originale. A destra, la trasformazione normalizza la distribuzione.*
 
 ### 5. Selezione delle Variabili e Test F Parziale (ANOVA)
 Confrontiamo il Modello Completo (Saturo) con un Modello Ridotto (escludendo tutte le variabili inerenti al genere ed interazioni) per testare l'ipotesi nulla:
@@ -71,6 +80,12 @@ $$\hat{\vec{\beta}}\_{RR}(\lambda) = (Z\_{\text{std}}^T Z\_{\text{std}} + \lambd
 * **Salari Positivi (BasePay > 0 & TotalPay > 0)**: 146.736
 * **Filtro di Genere (nomi classificati univocamente)**: **126.306** record finali.
 * **Composizione**: **42,1% Femmine (1)**, **57,9% Maschi (0)**.
+
+![Gender Pay Gap per Settore](plots/gender_pay_gap_by_job.png)
+*Boxplot comparativo che illustra la distribuzione dei salari per genere e ruolo aziendale, evidenziando le asimmetrie distributive.*
+
+![Evoluzione Pay Gap con Anzianità](plots/seniority_pay_gap.png)
+*Evoluzione del divario retributivo in base all'anzianità stimata.*
 
 ### 1. Modello OLS con Trasformazione Radice Quadrata ($\lambda = 0.5$)
 
@@ -97,6 +112,12 @@ Il fitting dell'OLS sulla scala trasformata $Y^{(0.5)}$ restituisce le seguenti 
 | **Gender x Job_Fire** | 7.6066 | 6.996 | 1.087 | 0.277 | [-6.11, 21.32] |
 | **Gender x Job_Medical** | 8.4227 | 3.103 | 2.715 | **0.007** | [2.34, 14.50] |
 | **Gender x Job_Police** | -50.0045 | 3.421 | -14.618 | **0.000** | [-56.71, -43.30] |
+
+![Diagnostica OLS Naïve](plots/ols_diagnostics.png)
+*Residui a ventaglio (eteroschedasticità) e allontanamento dalla normalità sulle code prima della trasformazione.*
+
+![Diagnostica Modello Trasformato](plots/transformed_diagnostics.png)
+*Dopo l'applicazione di $\sqrt{Y}$, la varianza dei residui si stabilizza e il Q-Q Plot risulta nettamente linearizzato.*
 
 ---
 
@@ -190,11 +211,24 @@ Per l'interpretabilità, abbiamo estratto i valori **SHAP** (SHapley Additive ex
 
 $$ \phi_i(v) = \sum_{S \subseteq N \setminus \{i\}} \frac{|S|! (n - |S| - 1)!}{n!} (v(S \cup \{i\}) - v(S)) $$
 
+**Performance Out-of-Sample (XGBoost):**
+* **RMSE:** $42.900,19$
+* **$R^2$:** $0,2916$
+
+![XGBoost Pred vs Actual](plots/xgb_pred_vs_actual.png)
+*Confronto tra salario reale e salario predetto dal modello XGBoost sul test set.*
+
 **Interpretazione Analitica dello SHAP Summary Plot:**
 Dal grafico riassuntivo emergono tre chiare evidenze geometriche:
 * **Dominanza settoriale:** Le variabili relative alle macro-categorie professionali (in particolare *Education*, *Police*, e *Fire*) assorbono la stragrande maggioranza della varianza salariale. Il settore di appartenenza è il vero e proprio architrave della retribuzione.
 * **Effetti fissi temporali:** Le variabili temporali (`Year_*`) catturano efficacemente i macro-shock economici (es. inflazione o budget). Pur essendo rilevanti, il loro ordine di grandezza è nettamente inferiore rispetto all'impatto dell'allocazione dipartimentale.
 * **Il ruolo del Genere:** La variabile `Gender` mostra un impatto marginale sorprendentemente compresso rispetto ai macro-settori. Questo dimostra visivamente che il grosso del "Gender Pay Gap" ha origine a monte, derivando dalla **segregazione occupazionale** (le donne vengono collocate sistematicamente in dipartimenti meno remunerativi) piuttosto che da una penalizzazione diretta ed esplicita a parità di ruolo.
+
+![SHAP Bar Plot](plots/shap_bar.png)
+*SHAP Bar Plot: classifica esplicitamente l'importanza assoluta media di ciascuna feature.*
+
+![SHAP Summary Plot](plots/shap_summary.png)
+*SHAP Summary Plot: mostra l'impatto globale e la direzione di ciascuna variabile sulla predizione del singolo individuo.*
 
 #### Percorso B: Double Machine Learning (DML) per Inferenza Causale
 
@@ -216,56 +250,6 @@ $$ \hat{\theta} = (\tilde{T}^T \tilde{T})^{-1} \tilde{T}^T \tilde{Y} $$
 
 **Interpretazione dell'ATE:**
 Il valore calcolato di $\hat{\theta}$ rappresenta il divario salariale netto, rigorosamente **purificato** da tutte le complesse dinamiche settoriali e temporali descritte dallo SHAP. È la traduzione numerica del vero "costo di essere donna" a parità di tutte le altre condizioni osservabili (*ceteris paribus*, escludendo l'anzianità per inaffidabilità). Al netto della segregazione occupazionale, il trattamento genera una penalizzazione salariale strutturale stimata di 8581 dollari.
-
----
-
-## 📈 Visual Diagnostic Showcase
-
-Di seguito viene riportata la galleria completa delle visualizzazioni e dei test diagnostici generati dal nostro workflow statistico.
-
-### 1. Diagnostica delle Regressioni e Gauss-Markov
-
-#### A. Diagnostica dei Residui del Modello Naïve
-Residui a ventaglio (eteroschedasticità) e allontanamento dalla normalità sulle code prima della trasformazione.
-![Diagnostica OLS Naïve](plots/ols_diagnostics.png)
-
-#### B. Profilo di Log-Verosimiglianza Box-Cox
-Picco MLE del profilo di verosimiglianza stimato a $\lambda = 0.5969$, con l'arrotondamento accademico a $\lambda = 0.5$ per preservare l'interpretabilità.
-![Box-Cox Likelihood](plots/boxcox_likelihood.png)
-
-#### C. Distribuzione Salariale Prima e Dopo la Trasformazione
-L'istogramma a sinistra mostra la forte asimmetria a destra della retribuzione originale. A destra, la trasformazione radice quadrata ($\lambda = 0.5$) normalizza e simmetrizza l'intera distribuzione.
-![Distribuzione Salariale Grezza vs Trasformata](plots/salary_distribution.png)
-
-#### D. Diagnostica del Modello Trasformato ($\lambda = 0.5$)
-Dopo l'applicazione di $\sqrt{Y}$, la varianza dei residui si stabilizza e il Q-Q Plot risulta nettamente linearizzato.
-![Diagnostica Modello Trasformato](plots/transformed_diagnostics.png)
-
-#### E. Diagnostica Avanzata (Leverage e Distanza di Cook)
-Leva individuale con la soglia teorica $2(r+1)/n$ (linea tratteggiata rossa) e distanze di Cook con etichettatura automatica dei primi 5 outlier più influenti, guidati da figure dirigenziali come `Joanne Hayes-White`.
-![Leva e Cook's Distance](plots/leverage_cooks.png)
-
----
-
-### 2. Gap di Genere ed Effetti Interattivi
-
-#### A. Pay Gap per Macro-Categoria Professionale
-Boxplot comparativo che illustra la distribuzione dei salari per genere e ruolo aziendale, evidenziando le asimmetrie distributive.
-![Gender Pay Gap per Settore](plots/gender_pay_gap_by_job.png)
-
-#### B. Evoluzione del Gap Salariale con l'Anzianità
-Effetto dell'interazione tra genere ed anni di servizio. Le bande ombreggiate rappresentano gli intervalli di confidenza al 95%.
-![Evoluzione Pay Gap con Anzianità](plots/seniority_pay_gap.png)
-
----
-
-### 3. Machine Learning: XGBoost e SHAP
-
-#### SHAP Summary Plot
-Impatto globale delle feature sul modello XGBoost, con esclusione dell'anzianità. L'ordine verticale indica l'importanza della feature.
-![SHAP Summary Plot](plots/shap_summary.png)
-
-
 
 ---
 
