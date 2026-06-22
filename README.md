@@ -190,7 +190,11 @@ Per l'interpretabilità, abbiamo estratto i valori **SHAP** (SHapley Additive ex
 
 $$ \phi_i(v) = \sum_{S \subseteq N \setminus \{i\}} \frac{|S|! (n - |S| - 1)!}{n!} (v(S \cup \{i\}) - v(S)) $$
 
-dove $N$ è l'insieme di tutte le feature, $S$ è un sottoinsieme di feature, e $v(S)$ è il valore atteso della predizione condizionata a $S$.
+**Interpretazione Analitica dello SHAP Summary Plot:**
+Dal grafico riassuntivo emergono tre chiare evidenze geometriche:
+* **Dominanza settoriale:** Le variabili relative alle macro-categorie professionali (in particolare *Education*, *Police*, e *Fire*) assorbono la stragrande maggioranza della varianza salariale. Il settore di appartenenza è il vero e proprio architrave della retribuzione.
+* **Effetti fissi temporali:** Le variabili temporali (`Year_*`) catturano efficacemente i macro-shock economici (es. inflazione o budget). Pur essendo rilevanti, il loro ordine di grandezza è nettamente inferiore rispetto all'impatto dell'allocazione dipartimentale.
+* **Il ruolo del Genere:** La variabile `Gender` mostra un impatto marginale sorprendentemente compresso rispetto ai macro-settori. Questo dimostra visivamente che il grosso del "Gender Pay Gap" ha origine a monte, derivando dalla **segregazione occupazionale** (le donne vengono collocate sistematicamente in dipartimenti meno remunerativi) piuttosto che da una penalizzazione diretta ed esplicita a parità di ruolo.
 
 #### Percorso B: Double Machine Learning (DML) per Inferenza Causale
 
@@ -206,9 +210,12 @@ Questo approccio sfrutta la **condizione di ortogonalità di Neyman**, che rende
 $$ \hat{\theta} = (\tilde{T}^T \tilde{T})^{-1} \tilde{T}^T \tilde{Y} $$
 
 **Risultati dell'Inferenza Causale (ATE)**
-- **Effetto Causale Stimato ($\hat{\theta}$):** $-8581.20 \$$
-- **p-value:** $2.5345 \times 10^{-197}$
+- **Effetto Causale Stimato ($\hat{\theta}$):** **$-8581.20 \$$**
+- **p-value:** $2.53 \times 10^{-197}$
 - **Intervallo di Confidenza 95%:** $[-9141.17, -8021.22]$
+
+**Interpretazione dell'ATE:**
+Il valore calcolato di $\hat{\theta}$ rappresenta il divario salariale netto, rigorosamente **purificato** da tutte le complesse dinamiche settoriali e temporali descritte dallo SHAP. È la traduzione numerica del vero "costo di essere donna" a parità di tutte le altre condizioni osservabili (*ceteris paribus*, escludendo l'anzianità per inaffidabilità). Al netto della segregazione occupazionale, il trattamento genera una penalizzazione salariale strutturale stimata di 8581 dollari.
 
 ---
 
@@ -258,9 +265,7 @@ Effetto dell'interazione tra genere ed anni di servizio. Le bande ombreggiate ra
 Impatto globale delle feature sul modello XGBoost, con esclusione dell'anzianità. L'ordine verticale indica l'importanza della feature.
 ![SHAP Summary Plot](plots/shap_summary.png)
 
-#### SHAP Dependence Plot
-Interazione non-lineare e strutturale del divario retributivo in base al Genere, evidenziando come l'appartenenza a dipartimenti specifici (es. `Job_Medical`) ne moduli l'impatto complessivo.
-![SHAP Dependence Plot](plots/shap_dependence.png)
+
 
 ---
 

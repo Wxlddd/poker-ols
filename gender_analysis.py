@@ -684,16 +684,8 @@ def main():
     plt.close()
     copy_to_artifacts('plots/shap_summary.png')
     
-    # SHAP Dependence Plot (Gender vs Department)
-    # We color by 'Job_Medical' to visualize interaction with a specific department
-    plt.figure(figsize=(8, 6))
-    shap.dependence_plot("Gender", shap_values.values, X_test_full, interaction_index="Job_Medical", show=False)
-    plt.title('SHAP Dependence Plot: Gender (Colored by Medical Dept)')
-    plt.tight_layout()
-    plt.savefig('plots/shap_dependence.png', dpi=150)
-    plt.close()
-    copy_to_artifacts('plots/shap_dependence.png')
     
+
     # --- Percorso B: Double Machine Learning (DML) ---
     print("\n--- Path B: Double Machine Learning (DML) ---")
     
