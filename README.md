@@ -20,7 +20,7 @@ Modelliamo la retribuzione totale $Y$ tramite regressione lineare multipla:
 $$\vec{y} = Z\vec{\beta} + \vec{\varepsilon}$$
 dove $Z$ è la matrice di disegno contenente l'intercetta, la dummy di genere, l'anzianità, le dummy di anno, le dummy di macro-categoria lavorativa e i relativi termini di interazione.
 Per garantire l'esistenza e l'unicità dello stimatore OLS:
-$$\hat{\vec{\beta}}_{OLS} = (Z^T Z)^{-1} Z^T \vec{y}$$
+$$\hat{\vec{\beta}}\_{OLS} = (Z^T Z)^{-1} Z^T \vec{y}$$
 verifichiamo che la matrice $Z$ sia a **rango colonna pieno** ($\text{rango}(Z) = r + 1$), garantendo l'invertibilità di $Z^T Z$.
 
 ### 2. Decomposizione della Varianza e Ortogonalità
@@ -32,17 +32,17 @@ $$\hat{\vec{y}}^T \hat{\vec{\varepsilon}} = 0$$
 ### 3. Matrice Hat, Leverage e Distanza di Cook
 Il vettore delle previsioni $\hat{\vec{y}}$ è proiettato sullo spazio delle colonne di $Z$ tramite la **Matrice Hat** $H$:
 $$\hat{\vec{y}} = H\vec{y}, \quad H = Z(Z^T Z)^{-1} Z^T$$
-I valori sulla diagonale $h_{ii} \in [0,1]$ misurano la leva (leverage). I punti di leva critici soddisfano la soglia:
-$$h_{ii} > \frac{2(r+1)}{n}$$
-Per valutare l'influenza di ciascun punto sul vettore dei coefficienti $\hat{\vec{\beta}}$, calcoliamo la **Distanza di Cook** $D_i$:
-$$D_i = \frac{t_i^2}{r+1} \left( \frac{h_{ii}}{1 - h_{ii}} \right)$$
-dove $t_i$ rappresenta il residuo studentizzato internamente.
+I valori sulla diagonale $h\_{ii} \in [0,1]$ misurano la leva (leverage). I punti di leva critici soddisfano la soglia:
+$$h\_{ii} > \frac{2(r+1)}{n}$$
+Per valutare l'influenza di ciascun punto sul vettore dei coefficienti $\hat{\vec{\beta}}$, calcoliamo la **Distanza di Cook** $D\_i$:
+$$D\_i = \frac{t\_i^2}{r+1} \left( \frac{h\_{ii}}{1 - h\_{ii}} \right)$$
+dove $t\_i$ rappresenta il residuo studentizzato internamente.
 
 ### 4. Trasformazione Box-Cox per la Stabilizzazione della Varianza
 In presenza di eteroschedasticità, applichiamo la trasformazione di potenza di **Box-Cox** sulla risposta continua $Y$:
 $$Y^{(\lambda)} = \begin{cases} \frac{Y^\lambda - 1}{\lambda} & \text{se } \lambda \neq 0 \\ \ln(Y) & \text{se } \lambda = 0 \end{cases}$$
 Il parametro ottimale $\lambda$ viene stimato tramite Massima Verosimiglianza (MLE), massimizzando il profilo di log-verosimiglianza:
-$$L(\lambda) = -\frac{n}{2} \ln(\text{Var}(Y^{(\lambda)})) + (\lambda - 1) \sum_{i=1}^n \ln(y_i)$$
+$$L(\lambda) = -\frac{n}{2} \ln(\text{Var}(Y^{(\lambda)})) + (\lambda - 1) \sum\_{i=1}^n \ln(y\_i)$$
 
 ---
 
@@ -134,10 +134,10 @@ Per confrontare le stime con la letteratura internazionale, stimiamo il modello 
 ---
 
 ### 2. Verifica Rigorosa del Gap Netto nel Settore 'Education' (Section 1c)
-Verifichiamo formalmente se nel settore 'Education' il divario di genere netto $\theta = \beta_{\text{Gender}} + \beta_{\text{Gender-x-Education}}$ si annulla.
+Verifichiamo formalmente se nel settore 'Education' il divario di genere netto $\theta = \beta\_{\text{Gender}} + \beta\_{\text{Gender-x-Education}}$ si annulla.
 Calcoliamo la varianza robusta della combinazione lineare:
-$$\text{Var}(\hat{\theta}) = \text{Var}(\hat{\beta}_{\text{Gender}}) + \text{Var}(\hat{\beta}_{\text{Gender-x-Education}}) + 2\text{Cov}(\hat{\beta}_{\text{Gender}}, \hat{\beta}_{\text{Gender-x-Education}})$$
-e testiamo l'ipotesi nulla $H_0: \theta = 0$ con un test di Wald (Chi-quadro ad 1 grado di libertà).
+$$\text{Var}(\hat{\theta}) = \text{Var}(\hat{\beta}\_{\text{Gender}}) + \text{Var}(\hat{\beta}\_{\text{Gender-x-Education}}) + 2\text{Cov}(\hat{\beta}\_{\text{Gender}}, \hat{\beta}\_{\text{Gender-x-Education}})$$
+e testiamo l'ipotesi nulla $H\_0: \theta = 0$ con un test di Wald (Chi-quadro ad 1 grado di libertà).
 
 * **Modello Box-Cox ($\lambda = 0.5$)**:
   * **Stima Puntuale $\hat{\theta}$**: $0.092882$ (radice quadrata di dollari)
@@ -155,7 +155,7 @@ e testiamo l'ipotesi nulla $H_0: \theta = 0$ con un test di Wald (Chi-quadro ad 
 ---
 
 ### 3. Decomposizione Oaxaca-Blinder (Sezione 2a)
-Conduciamo la scomposizione classica del divario medio di log-retribuzione ($\overline{\ln(Y_M)} - \overline{\ln(Y_F)}$) per distinguere l'effetto delle caratteristiche individuali dalla discriminazione salariale pura.
+Conduciamo la scomposizione classica del divario medio di log-retribuzione ($\overline{\ln(Y\_M)} - \overline{\ln(Y\_F)}$) per distinguere l'effetto delle caratteristiche individuali dalla discriminazione salariale pura.
 
 * **Divario di Log-Retribuzione Totale**: $0.283141$ log-points (corrisponde a un gap geometrico medio del **$32.73\%$** a favore degli uomini).
 * **Componente Spiegata (Endowment Effect)**: $0.166265$ log-points (**$58.72\%$** del gap totale). Rappresenta lo scarto salariale giustificato dalla diversa distribuzione di seniority e allocazione lavorativa nei macro-settori.
@@ -169,7 +169,7 @@ Di seguito viene mostrata la scomposizione grafica delle componenti del divario:
 
 ### 4. Analisi dei "Bad Controls" e Segregazione Occupazionale (Sezione 2c)
 Il macro-settore occupazionale è una scelta lavorativa potenzialmente determinata a valle del genere (segregazione all'ingresso). Di conseguenza, l'inserimento di dummy settoriali agisce come **bad control** (Angrist & Pischke, 2009), assorbendo parte del Gender Pay Gap sistemico.
-Confrontiamo il coefficiente di genere $\beta_{\text{Gender}}$ tra il modello Unadjusted (Short) e i modelli Adjusted (Long):
+Confrontiamo il coefficiente di genere $\beta\_{\text{Gender}}$ tra il modello Unadjusted (Short) e i modelli Adjusted (Long):
 
 #### Tabella Comparativa dei Coefficienti di Genere (Box-Cox $\lambda = 0.5$)
 | Modello | Coefficiente `Gender` | Dev. Standard (HC3) | Statistica z | p-value | Conf. Int. 95% |
