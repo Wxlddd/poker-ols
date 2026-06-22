@@ -22,7 +22,7 @@ plt.rcParams.update({
 })
 
 # Path for artifacts
-ARTIFACT_DIR = r"C:\Users\loren\.gemini\antigravity\brain\2df59a04-f39e-41fb-b884-2a57332edee4"
+ARTIFACT_DIR = r"C:\Users\loren\.gemini\antigravity\brain\07d5efb9-4fbe-4ef2-8cdf-cae0ca42f97b"
 
 def copy_to_artifacts(filename):
     if os.path.exists(filename) and os.path.exists(ARTIFACT_DIR):
@@ -220,7 +220,7 @@ def main():
     # -------------------------------------------------------------------------
     print("\n--- Step 3: OLS Estimation & Variance Decomposition ---")
     model_naive = sm.OLS(Y, Z)
-    results_naive = model_naive.fit()
+    results_naive = model_naive.fit(cov_type='HC3')
     print(results_naive.summary())
     
     # Variance Decomposition: SSTOT = SSREG + SSRES
@@ -474,11 +474,19 @@ def main():
     plt.close()
     copy_to_artifacts('salary_distribution.png')
         
-    # Refit OLS with transformed Y
+    # Refit OLS with transformed Y (lambda = 0.5)
     model_trans = sm.OLS(Y_trans, Z)
-    results_trans = model_trans.fit()
-    print("\n--- OLS SUMMARY ON TRANSFORMED VARIABLE ---")
+    results_trans = model_trans.fit(cov_type='HC3')
+    print("\n--- OLS SUMMARY ON TRANSFORMED VARIABLE (lambda = 0.5) ---")
     print(results_trans.summary())
+    
+    # Fit OLS with log-linear specification (lambda = 0)
+    print("\nFitting log-linear model (lambda = 0) as robustness check...")
+    Y_log = np.log(Y)
+    model_log = sm.OLS(Y_log, Z)
+    results_log = model_log.fit(cov_type='HC3')
+    print("\n--- OLS SUMMARY ON LOG-LINEAR VARIABLE (lambda = 0) ---")
+    print(results_log.summary())
     
     y_hat_trans = results_trans.fittedvalues
     residuals_trans = Y_trans - y_hat_trans
@@ -564,13 +572,13 @@ def main():
     if 'Intercept' in current_features:
         current_features.remove('Intercept')
         
-    print("Running Backward Elimination based on p-values (threshold = 0.05)...")
+    print("Running Backward Elimination based on robust p-values (threshold = 0.05)...")
     step = 1
     while len(current_features) > 0:
         # Fit OLS
         Z_sub = Z[['Intercept'] + current_features]
         model_step = sm.OLS(Y_trans, Z_sub)
-        res_step = model_step.fit()
+        res_step = model_step.fit(cov_type='HC3')
         
         # Get p-values excluding Intercept
         p_values = res_step.pvalues.drop('Intercept')
@@ -595,8 +603,8 @@ def main():
     Z_reduced = Z[reduced_features].values
     
     # Fit full and reduced models on transformed Y
-    res_full = sm.OLS(Y_trans, Z).fit()
-    res_reduced = sm.OLS(Y_trans, Z[reduced_features]).fit()
+    res_full = sm.OLS(Y_trans, Z).fit(cov_type='HC3')
+    res_reduced = sm.OLS(Y_trans, Z[reduced_features]).fit(cov_type='HC3')
     
     SSRES_full = np.sum(res_full.resid ** 2)
     SSRES_reduced = np.sum(res_reduced.resid ** 2)
@@ -609,16 +617,24 @@ def main():
     F_stat = ((SSRES_reduced - SSRES_full) / q) / (SSRES_full / (n - p_full))
     F_pvalue = stats.f.sf(F_stat, q, n - p_full)
     
+    # Robust joint test using statsmodels' f_test (which accounts for the robust covariance matrix)
+    constraints = [f"{var} = 0" for var in gender_related]
+    robust_joint_test = res_full.f_test(constraints)
+    robust_F_stat = float(robust_joint_test.fvalue)
+    robust_F_pvalue = float(robust_joint_test.pvalue)
+    
     print("\nNested F-Test (ANOVA): Full vs Reduced Model (No Gender Info)")
     print(f"Restrictions (coefficients tested for 0): {q} ({gender_related})")
     print(f"Full Model SSRES: {SSRES_full:,.4f} (Parameters: {p_full})")
     print(f"Reduced Model SSRES: {SSRES_reduced:,.4f} (Parameters: {p_reduced})")
-    print(f"Nested F-Statistic: {F_stat:.4f}")
-    print(f"F-Test p-value: {F_pvalue:.8e}")
-    if F_pvalue < 0.05:
-        print("Result: Strongly Reject H0! Gender pay gap and its interactions are highly statistically significant.")
+    print(f"Classical Nested F-Statistic: {F_stat:.4f}")
+    print(f"Classical F-Test p-value: {F_pvalue:.8e}")
+    print(f"Robust Nested F-Statistic (HC3 VCE): {robust_F_stat:.4f}")
+    print(f"Robust F-Test p-value: {robust_F_pvalue:.8e}")
+    if robust_F_pvalue < 0.05:
+        print("Result: Strongly Reject H0! Gender pay gap and its interactions are highly statistically significant (robust test).")
     else:
-        print("Result: Fail to reject H0. No statistical difference when removing gender indicators.")
+        print("Result: Fail to reject H0. No statistical difference when removing gender indicators (robust test).")
         
     # Variance Inflation Factor (VIF)
     print("\nCalculating Variance Inflation Factors (VIF) for all covariates...")
@@ -690,7 +706,199 @@ def main():
     copy_to_artifacts('ridge_path.png')
     
     print("\nRidge Path generated and saved to 'ridge_path.png'.")
-    print("Process complete!")
+    
+    # -------------------------------------------------------------------------
+    # STEP 8: RIGOROUS NET GAP VERIFICATION IN SECTORS (Section 1c)
+    # -------------------------------------------------------------------------
+    print("\n" + "=" * 70)
+    print("--- Step 8: Rigorous Net Gap Verification in 'Education' (Section 1c) ---")
+    print("=" * 70)
+    
+    def test_education_net_gap(results, model_name):
+        cov_matrix = results.cov_params()
+        
+        beta_gender = results.params['Gender']
+        beta_inter = results.params['Gender_x_Job_Education']
+        
+        net_gap = beta_gender + beta_inter
+        
+        var_gender = cov_matrix.loc['Gender', 'Gender']
+        var_inter = cov_matrix.loc['Gender_x_Job_Education', 'Gender_x_Job_Education']
+        cov_gender_inter = cov_matrix.loc['Gender', 'Gender_x_Job_Education']
+        
+        var_net = var_gender + var_inter + 2 * cov_gender_inter
+        se_net = np.sqrt(var_net)
+        
+        hypothesis = "Gender + Gender_x_Job_Education = 0"
+        wald_test_res = results.wald_test(hypothesis, use_f=False)
+        wald_stat = float(np.asarray(wald_test_res.statistic).flat[0])
+        p_val = float(np.asarray(wald_test_res.pvalue).flat[0])
+        
+        z_crit = stats.norm.ppf(0.975)
+        ci_lower = net_gap - z_crit * se_net
+        ci_upper = net_gap + z_crit * se_net
+        
+        print(f"\nNet Gap Results for Model: {model_name}")
+        print(f"  Point Estimate (beta_Gender + beta_Gender_x_Job_Education): {net_gap:.6f}")
+        print(f"  Analytical Standard Error (Robust): {se_net:.6f}")
+        print(f"  95% Confidence Interval: [{ci_lower:.6f}, {ci_upper:.6f}]")
+        print(f"  Wald Test Statistic (Chi2, 1 df): {wald_stat:.4f}")
+        print(f"  p-value: {p_val:.8e}")
+        if p_val < 0.05:
+            print("  Result: Reject H0! The net gap in Education is statistically different from zero.")
+        else:
+            print("  Result: Fail to reject H0. The net gap in Education is NOT statistically different from zero.")
+            
+        return {
+            'net_gap': net_gap,
+            'se': se_net,
+            'stat': wald_stat,
+            'pvalue': p_val,
+            'ci': (ci_lower, ci_upper)
+        }
+        
+    print("\nCalculating Net Gap in Education for Transformed Model (lambda = 0.5):")
+    net_gap_trans = test_education_net_gap(results_trans, "Box-Cox (lambda = 0.5)")
+    
+    print("\nCalculating Net Gap in Education for Log-Linear Model (lambda = 0):")
+    net_gap_log = test_education_net_gap(results_log, "Log-Linear (lambda = 0)")
+    
+    # -------------------------------------------------------------------------
+    # STEP 9: OAXACA-BLINDER DECOMPOSITION (Section 2a)
+    # -------------------------------------------------------------------------
+    print("\n" + "=" * 70)
+    print("--- Step 9: Oaxaca-Blinder Decomposition (Section 2a) ---")
+    print("=" * 70)
+    
+    males_mask = (final_df['Gender'].values == 0)
+    females_mask = (final_df['Gender'].values == 1)
+    
+    Y_M_log = Y_log[males_mask]
+    Y_F_log = Y_log[females_mask]
+    
+    ob_covariates = [
+        'Intercept', 'Seniority', 'Year_2012', 'Year_2013', 'Year_2014',
+        'Job_Education', 'Job_Fire', 'Job_Medical', 'Job_Police'
+    ]
+    
+    X_M = Z.loc[males_mask, ob_covariates]
+    X_F = Z.loc[females_mask, ob_covariates]
+    
+    model_m = sm.OLS(Y_M_log, X_M)
+    results_m = model_m.fit(cov_type='HC3')
+    
+    model_f = sm.OLS(Y_F_log, X_F)
+    results_f = model_f.fit(cov_type='HC3')
+    
+    mean_X_M = X_M.mean()
+    mean_X_F = X_F.mean()
+    
+    beta_M = results_m.params
+    beta_F = results_f.params
+    
+    mean_Y_M_log = np.mean(Y_M_log)
+    mean_Y_F_log = np.mean(Y_F_log)
+    total_gap = mean_Y_M_log - mean_Y_F_log
+    
+    endowment = np.dot(mean_X_M - mean_X_F, beta_M)
+    discrimination = np.dot(mean_X_F, beta_M - beta_F)
+    
+    decomp_sum = endowment + discrimination
+    diff_check = total_gap - decomp_sum
+    
+    pct_endowment = (endowment / total_gap) * 100
+    pct_discrimination = (discrimination / total_gap) * 100
+    
+    print(f"\nOaxaca-Blinder Decomposition Results (Specification: ln(Y)):")
+    print(f"  Mean Log Pay (Males):   {mean_Y_M_log:.6f} (equivalent to ${np.exp(mean_Y_M_log):,.2f} geometric mean)")
+    print(f"  Mean Log Pay (Females): {mean_Y_F_log:.6f} (equivalent to ${np.exp(mean_Y_F_log):,.2f} geometric mean)")
+    print(f"  Total Log Pay Gap:      {total_gap:.6f} (equivalent to {np.expm1(total_gap)*100:.2f}% gap)")
+    print("-" * 50)
+    print(f"  1. Explained Component (Endowment Effect):     {endowment:.6f} ({pct_endowment:.2f}% of total gap)")
+    print(f"  2. Unexplained Component (Discrimination):     {discrimination:.6f} ({pct_discrimination:.2f}% of total gap)")
+    print(f"  Sum of Components:                             {decomp_sum:.6f}")
+    print(f"  Check Difference (Total Gap - Sum):            {diff_check:.8e}")
+    
+    # -------------------------------------------------------------------------
+    # STEP 10: BAD CONTROLS & OCCUPATIONAL SEGREGATION (Section 2c)
+    # -------------------------------------------------------------------------
+    print("\n" + "=" * 70)
+    print("--- Step 10: Bad Controls & Occupational Segregation (Section 2c) ---")
+    print("=" * 70)
+    
+    short_covs = ['Intercept', 'Gender', 'Seniority', 'Year_2012', 'Year_2013', 'Year_2014']
+    Z_short = Z[short_covs]
+    
+    no_inter_covs = [
+        'Intercept', 'Gender', 'Seniority', 'Year_2012', 'Year_2013', 'Year_2014',
+        'Job_Education', 'Job_Fire', 'Job_Medical', 'Job_Police'
+    ]
+    Z_no_inter = Z[no_inter_covs]
+    
+    results_short_trans = sm.OLS(Y_trans, Z_short).fit(cov_type='HC3')
+    results_no_inter_trans = sm.OLS(Y_trans, Z_no_inter).fit(cov_type='HC3')
+    
+    results_short_log = sm.OLS(Y_log, Z_short).fit(cov_type='HC3')
+    results_no_inter_log = sm.OLS(Y_log, Z_no_inter).fit(cov_type='HC3')
+    
+    def compare_gender_coefficients(results_dict, scale_name):
+        print(f"\nComparative Table of Gender Coefficients (Scale: {scale_name})")
+        print("-" * 115)
+        print(f"{'Model Type':<45} | {'Coef':<10} | {'Std Error':<10} | {'t-stat':<10} | {'p-value':<10} | {'95% Conf. Interval':<20}")
+        print("-" * 115)
+        
+        table_data = []
+        for model_label, res in results_dict.items():
+            coef = res.params['Gender']
+            se = res.bse['Gender']
+            t_stat = res.tvalues['Gender']
+            p_val = res.pvalues['Gender']
+            ci = res.conf_int().loc['Gender']
+            print(f"{model_label:<45} | {coef:<10.6f} | {se:<10.6f} | {t_stat:<10.4f} | {p_val:<10.4e} | [{ci[0]:.6f}, {ci[1]:.6f}]")
+            table_data.append({
+                'model': model_label,
+                'coef': coef,
+                'se': se,
+                't_stat': t_stat,
+                'p_val': p_val,
+                'ci_lower': ci[0],
+                'ci_upper': ci[1]
+            })
+        print("-" * 115)
+        return table_data
+        
+    trans_models = {
+        '1. Unadjusted (Short Model)': results_short_trans,
+        '2. Adjusted (Long Model, No Gender Interactions)': results_no_inter_trans,
+        '3. Adjusted (Long Model, Saturated with Interactions)': results_trans
+    }
+    
+    log_models = {
+        '1. Unadjusted (Short Model)': results_short_log,
+        '2. Adjusted (Long Model, No Gender Interactions)': results_no_inter_log,
+        '3. Adjusted (Long Model, Saturated with Interactions)': results_log
+    }
+    
+    print("\n--- BOX-COX MODELS (lambda = 0.5) ---")
+    tbl_trans = compare_gender_coefficients(trans_models, "Box-Cox lambda=0.5")
+    
+    print("\n--- LOG-LINEAR MODELS (lambda = 0) ---")
+    tbl_log = compare_gender_coefficients(log_models, "Log-Linear lambda=0")
+    
+    sorting_trans = (tbl_trans[0]['coef'] - tbl_trans[1]['coef']) / tbl_trans[0]['coef'] * 100
+    sorting_log = (tbl_log[0]['coef'] - tbl_log[1]['coef']) / tbl_log[0]['coef'] * 100
+    
+    print(f"\nOccupational Sorting / Bad Controls Analysis:")
+    print(f"  - Box-Cox (lambda = 0.5):")
+    print(f"    Unadjusted Gender Gap: {tbl_trans[0]['coef']:.6f}")
+    print(f"    Adjusted Gender Gap (no interactions): {tbl_trans[1]['coef']:.6f}")
+    print(f"    Percentage of gap explained by occupational sorting: {sorting_trans:.2f}%")
+    print(f"  - Log-Linear (lambda = 0):")
+    print(f"    Unadjusted Gender Gap: {tbl_log[0]['coef']:.6f}")
+    print(f"    Adjusted Gender Gap (no interactions): {tbl_log[1]['coef']:.6f}")
+    print(f"    Percentage of gap explained by occupational sorting: {sorting_log:.2f}%")
+    
+    print("\nProcess complete!")
     print("=" * 70)
 
 if __name__ == '__main__':
