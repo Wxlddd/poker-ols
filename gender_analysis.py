@@ -8,12 +8,6 @@ import seaborn as sns
 import statsmodels.api as sm
 from scipy import stats
 from statsmodels.stats.outliers_influence import variance_inflation_factor
-from scipy.special import inv_boxcox
-import xgboost as xgb
-import shap
-from sklearn.model_selection import train_test_split, cross_val_predict, KFold
-from sklearn.ensemble import RandomForestRegressor, RandomForestClassifier
-from sklearn.metrics import mean_squared_error, r2_score
 
 # Set plot aesthetics
 sns.set_theme(style="whitegrid", palette="muted")
@@ -28,7 +22,7 @@ plt.rcParams.update({
 })
 
 # Path for artifacts
-ARTIFACT_DIR = r"C:\Users\loren\.gemini\antigravity\brain\2df59a04-f39e-41fb-b884-2a57332edee4"
+ARTIFACT_DIR = r"C:\Users\loren\.gemini\antigravity\brain\07d5efb9-4fbe-4ef2-8cdf-cae0ca42f97b"
 
 def copy_to_artifacts(filename):
     if os.path.exists(filename) and os.path.exists(ARTIFACT_DIR):
@@ -227,7 +221,7 @@ def main():
     # -------------------------------------------------------------------------
     print("\n--- Step 3: OLS Estimation & Variance Decomposition ---")
     model_naive = sm.OLS(Y, Z)
-    results_naive = model_naive.fit()
+    results_naive = model_naive.fit(cov_type='HC3')
     print(results_naive.summary())
     
     # Variance Decomposition: SSTOT = SSREG + SSRES
@@ -481,10 +475,10 @@ def main():
     plt.close()
     copy_to_artifacts('plots/salary_distribution.png')
         
-    # Refit OLS with transformed Y
+    # Refit OLS with transformed Y (lambda = 0.5)
     model_trans = sm.OLS(Y_trans, Z)
-    results_trans = model_trans.fit()
-    print("\n--- OLS SUMMARY ON TRANSFORMED VARIABLE ---")
+    results_trans = model_trans.fit(cov_type='HC3')
+    print("\n--- OLS SUMMARY ON TRANSFORMED VARIABLE (lambda = 0.5) ---")
     print(results_trans.summary())
     
     y_hat_trans = results_trans.fittedvalues
@@ -571,13 +565,13 @@ def main():
     if 'Intercept' in current_features:
         current_features.remove('Intercept')
         
-    print("Running Backward Elimination based on p-values (threshold = 0.05)...")
+    print("Running Backward Elimination based on robust p-values (threshold = 0.05)...")
     step = 1
     while len(current_features) > 0:
         # Fit OLS
         Z_sub = Z[['Intercept'] + current_features]
         model_step = sm.OLS(Y_trans, Z_sub)
-        res_step = model_step.fit()
+        res_step = model_step.fit(cov_type='HC3')
         
         # Get p-values excluding Intercept
         p_values = res_step.pvalues.drop('Intercept')
@@ -602,8 +596,8 @@ def main():
     Z_reduced = Z[reduced_features].values
     
     # Fit full and reduced models on transformed Y
-    res_full = sm.OLS(Y_trans, Z).fit()
-    res_reduced = sm.OLS(Y_trans, Z[reduced_features]).fit()
+    res_full = sm.OLS(Y_trans, Z).fit(cov_type='HC3')
+    res_reduced = sm.OLS(Y_trans, Z[reduced_features]).fit(cov_type='HC3')
     
     SSRES_full = np.sum(res_full.resid ** 2)
     SSRES_reduced = np.sum(res_reduced.resid ** 2)
@@ -616,16 +610,24 @@ def main():
     F_stat = ((SSRES_reduced - SSRES_full) / q) / (SSRES_full / (n - p_full))
     F_pvalue = stats.f.sf(F_stat, q, n - p_full)
     
+    # Robust joint test using statsmodels' f_test (which accounts for the robust covariance matrix)
+    constraints = [f"{var} = 0" for var in gender_related]
+    robust_joint_test = res_full.f_test(constraints)
+    robust_F_stat = float(robust_joint_test.fvalue)
+    robust_F_pvalue = float(robust_joint_test.pvalue)
+    
     print("\nNested F-Test (ANOVA): Full vs Reduced Model (No Gender Info)")
     print(f"Restrictions (coefficients tested for 0): {q} ({gender_related})")
     print(f"Full Model SSRES: {SSRES_full:,.4f} (Parameters: {p_full})")
     print(f"Reduced Model SSRES: {SSRES_reduced:,.4f} (Parameters: {p_reduced})")
-    print(f"Nested F-Statistic: {F_stat:.4f}")
-    print(f"F-Test p-value: {F_pvalue:.8e}")
-    if F_pvalue < 0.05:
-        print("Result: Strongly Reject H0! Gender pay gap and its interactions are highly statistically significant.")
+    print(f"Classical Nested F-Statistic: {F_stat:.4f}")
+    print(f"Classical F-Test p-value: {F_pvalue:.8e}")
+    print(f"Robust Nested F-Statistic (HC3 VCE): {robust_F_stat:.4f}")
+    print(f"Robust F-Test p-value: {robust_F_pvalue:.8e}")
+    if robust_F_pvalue < 0.05:
+        print("Result: Strongly Reject H0! Gender pay gap and its interactions are highly statistically significant (robust test).")
     else:
-        print("Result: Fail to reject H0. No statistical difference when removing gender indicators.")
+        print("Result: Fail to reject H0. No statistical difference when removing gender indicators (robust test).")
         
     # Variance Inflation Factor (VIF)
     print("\nCalculating Variance Inflation Factors (VIF) for all covariates...")
@@ -644,127 +646,160 @@ def main():
     print(vif_data.sort_values(by="VIF", ascending=False))
     
     # -------------------------------------------------------------------------
-    # STEP 7: MACHINE LEARNING & INFERENZA CAUSALE (Senza Seniority)
+    # STEP 7: REGULARIZATION (Ridge Regression)
     # -------------------------------------------------------------------------
-    print("\n--- Step 7: Advanced Machine Learning & Causal Inference ---")
+    print("\n--- Step 7: Ridge Regularization & Ridge Path ---")
     
-    # 1. Prepare ML Feature Matrix (Strictly excluding Seniority)
-    ml_features = year_dummies.columns.tolist() + job_dummies.columns.tolist()
-    X_control = Z[ml_features].copy()
-    T_treatment = final_df['Gender'].copy()
-    Y_target = final_df['TotalPay'].copy()
+    # Standardize the covariates of Z (excluding intercept)
+    covariates = Z.drop(columns=['Intercept'])
+    X_mean = covariates.mean()
+    X_std = covariates.std()
+    # Handle columns with zero variance if any (just in case)
+    X_std[X_std == 0] = 1.0
+    X_scaled = (covariates - X_mean) / X_std
     
-    X_full = X_control.copy()
-    X_full['Gender'] = T_treatment
+    # Center Y (on transformed scale) so we don't have to penalize the intercept
+    Y_centered = Y_trans - np.mean(Y_trans)
     
-    # Train-Test Split (80/20)
-    X_train_full, X_test_full, Y_train, Y_test, T_train, T_test, X_train_ctrl, X_test_ctrl = train_test_split(
-        X_full, Y_target, T_treatment, X_control, test_size=0.2, random_state=42
-    )
+    # Create grid of penalty parameters (alphas in ridge terminology)
+    # 200 values from 10^-2 to 10^10
+    alphas = np.logspace(-2, 10, 200)
     
-    # --- Percorso A: XGBoost e SHAP ---
-    print("\n--- Path A: XGBoost & SHAP ---")
-    # Fit XGBoost on original scale
-    xgb_model = xgb.XGBRegressor(n_estimators=100, max_depth=6, learning_rate=0.1, random_state=42, n_jobs=-1)
-    xgb_model.fit(X_train_full, Y_train)
+    coef_list = []
+    col_names = covariates.columns.tolist()
     
-    y_pred_xgb = xgb_model.predict(X_test_full)
-    rmse_xgb = np.sqrt(mean_squared_error(Y_test, y_pred_xgb))
-    r2_xgb = r2_score(Y_test, y_pred_xgb)
+    # Compute Ridge analytically: beta_RR = (X^T X + alpha * I)^-1 * X^T * Y
+    X_arr = X_scaled.values
+    XtX = X_arr.T @ X_arr
+    XtY = X_arr.T @ Y_centered
+    k_vars = X_arr.shape[1]
     
-    print("Calculating SHAP values...")
-    explainer = shap.TreeExplainer(xgb_model)
-    shap_values = explainer(X_test_full)
+    for alpha in alphas:
+        # beta = (XtX + alpha * I)^-1 XtY
+        inv_mat = np.linalg.inv(XtX + alpha * np.eye(k_vars))
+        beta = inv_mat @ XtY
+        coef_list.append(beta)
+        
+    coef_matrix = np.array(coef_list) # dimensions: (num_alphas, k_vars)
     
-    # SHAP Summary Plot
+    # Plot Ridge Path
+    plt.figure(figsize=(12, 7))
+    for j in range(k_vars):
+        plt.plot(alphas, coef_matrix[:, j], label=col_names[j], linewidth=1.5)
+        
+    plt.xscale('log')
+    plt.axhline(0, color='black', linestyle='--', linewidth=1)
+    plt.title('Ridge Regression Path (Coefficients Shrinkage)')
+    plt.xlabel('Regularization Penalty Parameter ($\lambda$)')
+    plt.ylabel('Standardized Ridge Coefficients ($\hat{\\beta}_{RR}$)')
+    plt.legend(bbox_to_anchor=(1.04, 1), loc="upper left", borderaxespad=0, fontsize=9)
+    plt.tight_layout()
+    plt.savefig('plots/ridge_path.png', dpi=150)
+    plt.close()
+    copy_to_artifacts('plots/ridge_path.png')
+    
+    print("\nRidge Path generated and saved to 'plots/ridge_path.png'.")
+    
+    # -------------------------------------------------------------------------
+    # STEP 8: OCCUPATIONAL SEGREGATION DESCRIPTIVE STATISTICS
+    # -------------------------------------------------------------------------
+    print("\n" + "=" * 70)
+    print("--- Step 8: Occupational Segregation Descriptive Statistics ---")
+    print("=" * 70)
+    
+    # Create a grouped column where Admin and Other are merged into 'Other / Baseline'
+    final_df['JobCategory_Seg'] = final_df['JobCategory'].replace({'Admin': 'Other / Baseline', 'Other': 'Other / Baseline'})
+    
+    def print_occupational_segregation_table(df):
+        total_males = np.sum(df['Gender'] == 0)
+        total_females = np.sum(df['Gender'] == 1)
+        
+        seg_stats = []
+        categories = ['Police', 'Fire', 'Medical', 'Education', 'Other / Baseline']
+        
+        for cat in categories:
+            sub = df[df['JobCategory_Seg'] == cat]
+            n_male = np.sum(sub['Gender'] == 0)
+            n_female = np.sum(sub['Gender'] == 1)
+            n_total = n_male + n_female
+            
+            pct_male = n_male / n_total * 100 if n_total > 0 else 0
+            pct_female = n_female / n_total * 100 if n_total > 0 else 0
+            
+            share_male = n_male / total_males * 100 if total_males > 0 else 0
+            share_female = n_female / total_females * 100 if total_females > 0 else 0
+            
+            mean_pay = sub['TotalPay'].mean()
+            
+            seg_stats.append({
+                'Settore': cat,
+                'N_Male': n_male,
+                'Pct_Male': pct_male,
+                'N_Female': n_female,
+                'Pct_Female': pct_female,
+                'Share_Male': share_male,
+                'Share_Female': share_female,
+                'Mean_Pay': mean_pay
+            })
+            
+        seg_df = pd.DataFrame(seg_stats)
+        # Sort from highest male density to highest female density
+        seg_df = seg_df.sort_values(by='Pct_Male', ascending=False).reset_index(drop=True)
+        
+        print("\n" + "=" * 115)
+        print("  TABELLA RIASSUNTIVA: SEGREGAZIONE OCCUPAZIONALE E RETRIBUZIONE MEDIA PER SETTORE")
+        print("=" * 115)
+        print(f"{'Settore':<20} | {'N. Maschi':<12} | {'% Maschi':<10} | {'Quota M':<10} | {'N. Femmine':<12} | {'% Femmine':<10} | {'Quota F':<10} | {'Salario Medio':<15}")
+        print("-" * 115)
+        for idx, row in seg_df.iterrows():
+            print(f"{row['Settore']:<20} | {row['N_Male']:<12,d} | {row['Pct_Male']:<10.2f}% | {row['Share_Male']:<10.2f}% | {row['N_Female']:<12,d} | {row['Pct_Female']:<10.2f}% | {row['Share_Female']:<10.2f}% | ${row['Mean_Pay']:<14,.2f}")
+        print("-" * 115)
+        print(f"Total Males in Dataset: {total_males:,} | Total Females in Dataset: {total_females:,}")
+        print("=" * 115)
+        
+        return seg_df
+        
+    seg_df = print_occupational_segregation_table(final_df)
+    
+    # -------------------------------------------------------------------------
+    # STEP 9: OCCUPATIONAL SEGREGATION VISUALIZATION
+    # -------------------------------------------------------------------------
+    print("\n" + "=" * 70)
+    print("--- Step 9: Visualizing Occupational Segregation ---")
+    print("=" * 70)
+    
     plt.figure(figsize=(10, 6))
-    shap.summary_plot(shap_values, X_test_full, show=False)
+    
+    categories = seg_df['Settore'].tolist()
+    pct_males = seg_df['Pct_Male'].tolist()
+    pct_females = seg_df['Pct_Female'].tolist()
+    
+    color_male = '#1f77b4'
+    color_female = '#e377c2'
+    
+    bars_male = plt.barh(categories, pct_males, color=color_male, label='Uomini (0)', edgecolor='none', height=0.55)
+    bars_female = plt.barh(categories, pct_females, left=pct_males, color=color_female, label='Donne (1)', edgecolor='none', height=0.55)
+    
+    plt.xlim(0, 100)
+    plt.xlabel('Percentuale (%)')
+    plt.title('Segregazione Occupazionale: Bilanciamento di Genere per Settore\n(Ordinato da massima densità maschile a massima densità femminile)')
+    plt.legend(loc='lower left', frameon=True)
+    
+    plt.gca().invert_yaxis()
+    
+    for i in range(len(categories)):
+        if pct_males[i] > 8:
+            plt.text(pct_males[i]/2, i, f'{pct_males[i]:.1f}%', va='center', ha='center', color='white', fontweight='bold', fontsize=10)
+        if pct_females[i] > 8:
+            plt.text(pct_males[i] + pct_females[i]/2, i, f'{pct_females[i]:.1f}%', va='center', ha='center', color='white', fontweight='bold', fontsize=10)
+            
     plt.tight_layout()
-    plt.savefig('plots/shap_summary.png', dpi=150)
+    plt.savefig('plots/occupational_segregation.png', dpi=150)
     plt.close()
-    copy_to_artifacts('plots/shap_summary.png')
+    copy_to_artifacts('plots/occupational_segregation.png')
+    print("Saved plots/occupational_segregation.png and copied to artifacts.")
     
-    # SHAP Bar Plot (Feature Importance)
-    plt.figure(figsize=(10, 6))
-    shap.summary_plot(shap_values, X_test_full, plot_type="bar", show=False, color='#1f77b4')
-    plt.title('SHAP Feature Importance (Bar)')
-    plt.tight_layout()
-    plt.savefig('plots/shap_bar.png', dpi=150)
-    plt.close()
-    copy_to_artifacts('plots/shap_bar.png')
-    
-    # XGBoost: Predicted vs Actual Plot
-    plt.figure(figsize=(8, 8))
-    sns.scatterplot(x=Y_test, y=y_pred_xgb, alpha=0.3, edgecolor='none', color='#2ca02c')
-    plt.plot([Y_test.min(), Y_test.max()], [Y_test.min(), Y_test.max()], 'r--', lw=2)
-    plt.xlabel('Salario Reale ($)')
-    plt.ylabel('Salario Predetto da XGBoost ($)')
-    plt.title('XGBoost: Previsto vs Reale (Out-of-Sample)')
-    plt.tight_layout()
-    plt.savefig('plots/xgb_pred_vs_actual.png', dpi=150)
-    plt.close()
-    copy_to_artifacts('plots/xgb_pred_vs_actual.png')
-
-    
-    
-
-    # --- Percorso B: Double Machine Learning (DML) ---
-    print("\n--- Path B: Double Machine Learning (DML) ---")
-    
-    # Nuisance Model 1: E[Y|X] -> Regression
-    model_Y = RandomForestRegressor(n_estimators=100, max_depth=10, random_state=42, n_jobs=-1)
-    # Nuisance Model 2: E[T|X] -> Classification
-    model_T = RandomForestClassifier(n_estimators=100, max_depth=10, random_state=42, n_jobs=-1)
-    
-    cv = KFold(n_splits=5, shuffle=True, random_state=42)
-    
-    print("Computing out-of-fold residuals for DML...")
-    E_Y_X_train = cross_val_predict(model_Y, X_train_ctrl, Y_train, cv=cv, n_jobs=-1)
-    E_T_X_train = cross_val_predict(model_T, X_train_ctrl, T_train, cv=cv, method='predict_proba', n_jobs=-1)[:, 1]
-    
-    # Orthogonalization
-    Y_tilde = Y_train - E_Y_X_train
-    T_tilde = T_train - E_T_X_train
-    
-    # Final Causal Inference via OLS
-    dml_ols = sm.OLS(Y_tilde, T_tilde).fit()
-    theta_hat = dml_ols.params.iloc[0]
-    p_val_theta = dml_ols.pvalues.iloc[0]
-    conf_int = dml_ols.conf_int(alpha=0.05).iloc[0].values
-    
-    print(f"Estimated Average Treatment Effect (ATE) of Gender on Salary: {theta_hat:.2f} $")
-    print(f"p-value: {p_val_theta:.4e}")
-    print(f"95% Confidence Interval: [{conf_int[0]:.2f}, {conf_int[1]:.2f}]")
-    
-    # Out-of-sample evaluation of nuisance models
-    model_Y.fit(X_train_ctrl, Y_train)
-    y_pred_dml_nuisance = model_Y.predict(X_test_ctrl)
-    rmse_dml_nuisance = np.sqrt(mean_squared_error(Y_test, y_pred_dml_nuisance))
-    r2_dml_nuisance = r2_score(Y_test, y_pred_dml_nuisance)
-    
-    # --- Final Out-Of-Sample Comparison with OLS (Box-Cox) ---
-    print("\n--- Out-of-Sample Metrics Comparison ---")
-    
-    Z_train_full = Z.iloc[X_train_full.index].copy()
-    Z_test_full = Z.iloc[X_test_full.index].copy()
-    Y_trans_train = Y_trans[X_train_full.index]
-    
-    ols_train = sm.OLS(Y_trans_train, Z_train_full).fit()
-    y_trans_pred_ols = ols_train.predict(Z_test_full)
-    
-    # Invert Box-Cox robustly
-    y_pred_ols = np.where(y_trans_pred_ols < -1/opt_lambda, 0, inv_boxcox(y_trans_pred_ols, opt_lambda))
-    
-    rmse_ols = np.sqrt(mean_squared_error(Y_test, y_pred_ols))
-    r2_ols = r2_score(Y_test, y_pred_ols)
-    
-    print(f"{'Model':<30} | {'RMSE ($)':<15} | {'R^2':<10}")
-    print("-" * 60)
-    print(f"{'OLS Box-Cox (lambda=0.5)':<30} | {rmse_ols:<15.2f} | {r2_ols:<10.4f}")
-    print(f"{'XGBoost (Original Scale)':<30} | {rmse_xgb:<15.2f} | {r2_xgb:<10.4f}")
-    print(f"{'DML Nuisance (E[Y|X])':<30} | {rmse_dml_nuisance:<15.2f} | {r2_dml_nuisance:<10.4f}")
-    
-    print("\nMachine Learning phase complete!")
+    print("\nProcess complete!")
     print("=" * 70)
 
 if __name__ == '__main__':
