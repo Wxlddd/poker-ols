@@ -819,6 +819,28 @@ def main():
     print(f"  Sum of Components:                             {decomp_sum:.6f}")
     print(f"  Check Difference (Total Gap - Sum):            {diff_check:.8e}")
     
+    # Generate Oaxaca-Blinder Decomposition Plot
+    print("\nGenerating Oaxaca-Blinder Decomposition Plot...")
+    plt.figure(figsize=(8, 4))
+    categories = ['Endowment Effect\n(Spiegata)', 'Discrimination Effect\n(Non Spiegata)']
+    shares = [pct_endowment, pct_discrimination]
+    colors = ['#1f77b4', '#e377c2']
+    
+    bars = plt.barh(categories, shares, color=colors, height=0.45, edgecolor='none')
+    plt.xlim(0, 100)
+    plt.xlabel('Quota del Divario Totale (%)')
+    plt.title('Decomposizione di Oaxaca-Blinder (Specifica Log-Lineare $\ln(Y)$)')
+    
+    for bar, share in zip(bars, shares):
+        width = bar.get_width()
+        plt.text(width + 2, bar.get_y() + bar.get_height()/2, f'{share:.2f}%', 
+                 va='center', ha='left', fontweight='bold', fontsize=10)
+                
+    plt.tight_layout()
+    plt.savefig('oaxaca_decomposition.png', dpi=150)
+    plt.close()
+    copy_to_artifacts('oaxaca_decomposition.png')
+    
     # -------------------------------------------------------------------------
     # STEP 10: BAD CONTROLS & OCCUPATIONAL SEGREGATION (Section 2c)
     # -------------------------------------------------------------------------
@@ -897,6 +919,45 @@ def main():
     print(f"    Unadjusted Gender Gap: {tbl_log[0]['coef']:.6f}")
     print(f"    Adjusted Gender Gap (no interactions): {tbl_log[1]['coef']:.6f}")
     print(f"    Percentage of gap explained by occupational sorting: {sorting_log:.2f}%")
+    
+    # Generate Bad Controls / Sorting Comparison Plot
+    print("\nGenerating Bad Controls Comparison Plot...")
+    fig, axes = plt.subplots(1, 2, figsize=(14, 6))
+    
+    # Box-Cox model coefficients
+    models_label = ['1. Unadjusted\n(Short)', '2. Adjusted\n(No Inter.)', '3. Adjusted\n(Saturated)']
+    coefs_trans = [tbl_trans[0]['coef'], tbl_trans[1]['coef'], tbl_trans[2]['coef']]
+    errors_trans = [
+        (tbl_trans[i]['coef'] - tbl_trans[i]['ci_lower'], tbl_trans[i]['ci_upper'] - tbl_trans[i]['coef'])
+        for i in range(3)
+    ]
+    yerr_trans = np.array(errors_trans).T
+    
+    axes[0].errorbar(models_label, coefs_trans, yerr=yerr_trans, fmt='o', color='#9467bd', 
+                     ecolor='#9467bd', elinewidth=2, capsize=6, markersize=8)
+    axes[0].axhline(0, color='red', linestyle='--', linewidth=1)
+    axes[0].set_title('Coefficienti Gender in Scala Box-Cox ($\lambda = 0.5$)')
+    axes[0].set_ylabel(r'Stima Coefficiente Gender ($\hat{\beta}$)')
+    
+    # Log-Linear model coefficients
+    coefs_log = [tbl_log[0]['coef'], tbl_log[1]['coef'], tbl_log[2]['coef']]
+    errors_log = [
+        (tbl_log[i]['coef'] - tbl_log[i]['ci_lower'], tbl_log[i]['ci_upper'] - tbl_log[i]['coef'])
+        for i in range(3)
+    ]
+    yerr_log = np.array(errors_log).T
+    
+    axes[1].errorbar(models_label, coefs_log, yerr=yerr_log, fmt='o', color='#2ca02c', 
+                     ecolor='#2ca02c', elinewidth=2, capsize=6, markersize=8)
+    axes[1].axhline(0, color='red', linestyle='--', linewidth=1)
+    axes[1].set_title('Coefficienti Gender in Scala Log-Lineare ($\lambda = 0$)')
+    axes[1].set_ylabel(r'Stima Coefficiente Gender ($\hat{\beta}$)')
+    
+    plt.suptitle('Confronto dei Coefficienti Gender ed Effetto dei Bad Controls', fontsize=16)
+    plt.tight_layout()
+    plt.savefig('bad_controls_comparison.png', dpi=150)
+    plt.close()
+    copy_to_artifacts('bad_controls_comparison.png')
     
     print("\nProcess complete!")
     print("=" * 70)
