@@ -208,6 +208,36 @@ Il grafico sottostante (`plots/occupational_segregation.png`) rappresenta visiva
 
 ---
 
+### 7. Interpretabilità Non-Lineare: XGBoost e Valori SHAP
+
+> [!IMPORTANT]
+> **Correzione Metodologica: Esclusione dell'Anzianità**
+> La variabile `Seniority` (proxy per anni di servizio) è stata valutata come inaffidabile e soggetta a forte rumore di misurazione nel dataset. Per evitare **overfitting sul rumore di misurazione** nei modelli ad albero (misinterpreting variance), `Seniority` e tutte le sue interazioni sono state **totalmente escluse** dalla pipeline di Machine Learning seguente. I controlli includono esclusivamente dipartimento (macro-categoria) e anno.
+
+Per catturare complesse non-linearità strutturali e interazioni implicite tra Genere, Anno e Dipartimento senza doverle specificare a priori (come fatto nell'OLS), abbiamo modellato il salario totale utilizzando **XGBoost** (`XGBRegressor`).
+
+Per l'interpretabilità, abbiamo estratto i valori **SHAP** (SHapley Additive exPlanations) tramite `TreeExplainer`. I valori SHAP si basano sulla teoria dei giochi cooperativi e distribuiscono equamente l'impatto predittivo tra le feature. L'equazione dei valori di Shapley per una feature $i$ è definita come:
+
+$$ \phi_i(v) = \sum_{S \subseteq N \setminus \{i\}} \frac{|S|! (n - |S| - 1)!}{n!} (v(S \cup \{i\}) - v(S)) $$
+
+**Performance Out-of-Sample (XGBoost):**
+* **RMSE:** $42.900,19$
+* **$R^2$:** $0,2916$
+
+**Interpretazione Analitica dello SHAP Summary Plot:**
+Dal grafico riassuntivo emergono tre chiare evidenze geometriche:
+* **Dominanza settoriale:** Le variabili relative alle macro-categorie professionali (in particolare *Education*, *Police*, e *Fire*) assorbono la stragrande maggioranza della varianza salariale. Il settore di appartenenza è il vero e proprio architrave della retribuzione.
+* **Effetti fissi temporali:** Le variabili temporali (`Year_*`) catturano efficacemente i macro-shock economici (es. inflazione o budget). Pur essendo rilevanti, il loro ordine di grandezza è nettamente inferiore rispetto all'impatto dell'allocazione dipartimentale.
+* **Il ruolo del Genere:** La variabile `Gender` mostra un impatto marginale sorprendentemente compresso rispetto ai macro-settori. Questo dimostra visivamente che il grosso del "Gender Pay Gap" ha origine a monte, derivando dalla **segregazione occupazionale** (le donne vengono collocate sistematicamente in dipartimenti meno remunerativi) piuttosto che da una penalizzazione diretta ed esplicita a parità di ruolo.
+
+![SHAP Bar Plot](plots/shap_bar.png)
+*SHAP Bar Plot: classifica esplicitamente l'importanza assoluta media di ciascuna feature.*
+
+![SHAP Summary Plot](plots/shap_summary.png)
+*SHAP Summary Plot: mostra l'impatto globale e la direzione di ciascuna variabile sulla predizione del singolo individuo.*
+
+---
+
 ## 🚀 Guida di Esecuzione e Replicabilità
 
 Per riprodurre in autonomia l'intero workflow statistico ed descrittivo, esegui il file principale nel terminale:
