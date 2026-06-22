@@ -8,6 +8,12 @@ import seaborn as sns
 import statsmodels.api as sm
 from scipy import stats
 from statsmodels.stats.outliers_influence import variance_inflation_factor
+from scipy.special import inv_boxcox
+import xgboost as xgb
+import shap
+from sklearn.model_selection import train_test_split, cross_val_predict, KFold
+from sklearn.ensemble import RandomForestRegressor, RandomForestClassifier
+from sklearn.metrics import mean_squared_error, r2_score
 
 # Set plot aesthetics
 sns.set_theme(style="whitegrid", palette="muted")
@@ -638,60 +644,113 @@ def main():
     print(vif_data.sort_values(by="VIF", ascending=False))
     
     # -------------------------------------------------------------------------
-    # STEP 7: REGULARIZATION (Ridge Regression)
+    # STEP 7: MACHINE LEARNING & INFERENZA CAUSALE (Senza Seniority)
     # -------------------------------------------------------------------------
-    print("\n--- Step 7: Ridge Regularization & Ridge Path ---")
+    print("\n--- Step 7: Advanced Machine Learning & Causal Inference ---")
     
-    # Standardize the covariates of Z (excluding intercept)
-    covariates = Z.drop(columns=['Intercept'])
-    X_mean = covariates.mean()
-    X_std = covariates.std()
-    # Handle columns with zero variance if any (just in case)
-    X_std[X_std == 0] = 1.0
-    X_scaled = (covariates - X_mean) / X_std
+    # 1. Prepare ML Feature Matrix (Strictly excluding Seniority)
+    ml_features = year_dummies.columns.tolist() + job_dummies.columns.tolist()
+    X_control = Z[ml_features].copy()
+    T_treatment = final_df['Gender'].copy()
+    Y_target = final_df['TotalPay'].copy()
     
-    # Center Y (on transformed scale) so we don't have to penalize the intercept
-    Y_centered = Y_trans - np.mean(Y_trans)
+    X_full = X_control.copy()
+    X_full['Gender'] = T_treatment
     
-    # Create grid of penalty parameters (alphas in ridge terminology)
-    # 200 values from 10^-2 to 10^10
-    alphas = np.logspace(-2, 10, 200)
+    # Train-Test Split (80/20)
+    X_train_full, X_test_full, Y_train, Y_test, T_train, T_test, X_train_ctrl, X_test_ctrl = train_test_split(
+        X_full, Y_target, T_treatment, X_control, test_size=0.2, random_state=42
+    )
     
-    coef_list = []
-    col_names = covariates.columns.tolist()
+    # --- Percorso A: XGBoost e SHAP ---
+    print("\n--- Path A: XGBoost & SHAP ---")
+    # Fit XGBoost on original scale
+    xgb_model = xgb.XGBRegressor(n_estimators=100, max_depth=6, learning_rate=0.1, random_state=42, n_jobs=-1)
+    xgb_model.fit(X_train_full, Y_train)
     
-    # Compute Ridge analytically: beta_RR = (X^T X + alpha * I)^-1 * X^T * Y
-    X_arr = X_scaled.values
-    XtX = X_arr.T @ X_arr
-    XtY = X_arr.T @ Y_centered
-    k_vars = X_arr.shape[1]
+    y_pred_xgb = xgb_model.predict(X_test_full)
+    rmse_xgb = np.sqrt(mean_squared_error(Y_test, y_pred_xgb))
+    r2_xgb = r2_score(Y_test, y_pred_xgb)
     
-    for alpha in alphas:
-        # beta = (XtX + alpha * I)^-1 XtY
-        inv_mat = np.linalg.inv(XtX + alpha * np.eye(k_vars))
-        beta = inv_mat @ XtY
-        coef_list.append(beta)
-        
-    coef_matrix = np.array(coef_list) # dimensions: (num_alphas, k_vars)
+    print("Calculating SHAP values...")
+    explainer = shap.TreeExplainer(xgb_model)
+    shap_values = explainer(X_test_full)
     
-    # Plot Ridge Path
-    plt.figure(figsize=(12, 7))
-    for j in range(k_vars):
-        plt.plot(alphas, coef_matrix[:, j], label=col_names[j], linewidth=1.5)
-        
-    plt.xscale('log')
-    plt.axhline(0, color='black', linestyle='--', linewidth=1)
-    plt.title('Ridge Regression Path (Coefficients Shrinkage)')
-    plt.xlabel('Regularization Penalty Parameter ($\lambda$)')
-    plt.ylabel('Standardized Ridge Coefficients ($\hat{\\beta}_{RR}$)')
-    plt.legend(bbox_to_anchor=(1.04, 1), loc="upper left", borderaxespad=0, fontsize=9)
+    # SHAP Summary Plot
+    plt.figure(figsize=(10, 6))
+    shap.summary_plot(shap_values, X_test_full, show=False)
     plt.tight_layout()
-    plt.savefig('plots/ridge_path.png', dpi=150)
+    plt.savefig('plots/shap_summary.png', dpi=150)
     plt.close()
-    copy_to_artifacts('plots/ridge_path.png')
+    copy_to_artifacts('plots/shap_summary.png')
     
-    print("\nRidge Path generated and saved to 'plots/ridge_path.png'.")
-    print("Process complete!")
+    # SHAP Dependence Plot (Gender vs Department)
+    # We color by 'Job_Medical' to visualize interaction with a specific department
+    plt.figure(figsize=(8, 6))
+    shap.dependence_plot("Gender", shap_values.values, X_test_full, interaction_index="Job_Medical", show=False)
+    plt.title('SHAP Dependence Plot: Gender (Colored by Medical Dept)')
+    plt.tight_layout()
+    plt.savefig('plots/shap_dependence.png', dpi=150)
+    plt.close()
+    copy_to_artifacts('plots/shap_dependence.png')
+    
+    # --- Percorso B: Double Machine Learning (DML) ---
+    print("\n--- Path B: Double Machine Learning (DML) ---")
+    
+    # Nuisance Model 1: E[Y|X] -> Regression
+    model_Y = RandomForestRegressor(n_estimators=100, max_depth=10, random_state=42, n_jobs=-1)
+    # Nuisance Model 2: E[T|X] -> Classification
+    model_T = RandomForestClassifier(n_estimators=100, max_depth=10, random_state=42, n_jobs=-1)
+    
+    cv = KFold(n_splits=5, shuffle=True, random_state=42)
+    
+    print("Computing out-of-fold residuals for DML...")
+    E_Y_X_train = cross_val_predict(model_Y, X_train_ctrl, Y_train, cv=cv, n_jobs=-1)
+    E_T_X_train = cross_val_predict(model_T, X_train_ctrl, T_train, cv=cv, method='predict_proba', n_jobs=-1)[:, 1]
+    
+    # Orthogonalization
+    Y_tilde = Y_train - E_Y_X_train
+    T_tilde = T_train - E_T_X_train
+    
+    # Final Causal Inference via OLS
+    dml_ols = sm.OLS(Y_tilde, T_tilde).fit()
+    theta_hat = dml_ols.params.iloc[0]
+    p_val_theta = dml_ols.pvalues.iloc[0]
+    conf_int = dml_ols.conf_int(alpha=0.05).iloc[0].values
+    
+    print(f"Estimated Average Treatment Effect (ATE) of Gender on Salary: {theta_hat:.2f} $")
+    print(f"p-value: {p_val_theta:.4e}")
+    print(f"95% Confidence Interval: [{conf_int[0]:.2f}, {conf_int[1]:.2f}]")
+    
+    # Out-of-sample evaluation of nuisance models
+    model_Y.fit(X_train_ctrl, Y_train)
+    y_pred_dml_nuisance = model_Y.predict(X_test_ctrl)
+    rmse_dml_nuisance = np.sqrt(mean_squared_error(Y_test, y_pred_dml_nuisance))
+    r2_dml_nuisance = r2_score(Y_test, y_pred_dml_nuisance)
+    
+    # --- Final Out-Of-Sample Comparison with OLS (Box-Cox) ---
+    print("\n--- Out-of-Sample Metrics Comparison ---")
+    
+    Z_train_full = Z.iloc[X_train_full.index].copy()
+    Z_test_full = Z.iloc[X_test_full.index].copy()
+    Y_trans_train = Y_trans[X_train_full.index]
+    
+    ols_train = sm.OLS(Y_trans_train, Z_train_full).fit()
+    y_trans_pred_ols = ols_train.predict(Z_test_full)
+    
+    # Invert Box-Cox robustly
+    y_pred_ols = np.where(y_trans_pred_ols < -1/opt_lambda, 0, inv_boxcox(y_trans_pred_ols, opt_lambda))
+    
+    rmse_ols = np.sqrt(mean_squared_error(Y_test, y_pred_ols))
+    r2_ols = r2_score(Y_test, y_pred_ols)
+    
+    print(f"{'Model':<30} | {'RMSE ($)':<15} | {'R^2':<10}")
+    print("-" * 60)
+    print(f"{'OLS Box-Cox (lambda=0.5)':<30} | {rmse_ols:<15.2f} | {r2_ols:<10.4f}")
+    print(f"{'XGBoost (Original Scale)':<30} | {rmse_xgb:<15.2f} | {r2_xgb:<10.4f}")
+    print(f"{'DML Nuisance (E[Y|X])':<30} | {rmse_dml_nuisance:<15.2f} | {r2_dml_nuisance:<10.4f}")
+    
+    print("\nMachine Learning phase complete!")
     print("=" * 70)
 
 if __name__ == '__main__':

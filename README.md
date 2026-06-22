@@ -176,12 +176,39 @@ Per escludere distorsioni nelle stime e nel calcolo delle varianze dovute a coll
 
 ---
 
-### 7. Regolarizzazione Ridge e Analisi dei Coefficienti
+### 7. Machine Learning e Inferenza Causale
 
-Per analizzare la stabilità e contrazione dei nostri coefficienti, abbiamo calcolato analiticamente lo stimatore Ridge al variare di $\lambda \in [10^{-2}, 10^{10}]$ su covariate standardizzate (per evitare penalizzazioni inique dovute a scale differenti):
-$$\hat{\vec{\beta}}\_{RR}(\lambda) = (Z\_{\text{std}}^T Z\_{\text{std}} + \lambda I)^{-1} Z\_{\text{std}}^T \vec{y}\_{\text{centrata}}$$
+> [!IMPORTANT]
+> **Correzione Metodologica: Esclusione dell'Anzianità**
+> La variabile `Seniority` (proxy per anni di servizio) è stata valutata come inaffidabile e soggetta a forte rumore di misurazione nel dataset. Per evitare **overfitting sul rumore di misurazione** nei modelli ad albero (misinterpreting variance) e mitigare l'**Omitted Variable Bias** nelle stime causali, `Seniority` e tutte le sue interazioni sono state **totalmente escluse** dalle pipeline di Machine Learning e DML seguenti. I controlli includono esclusivamente dipartimento (macro-categoria) e anno.
 
-*Il grafico del Ridge Path (`ridge_path.png`) mostra che i coefficienti professionali (`Job_Education`, `Job_Fire`, `Job_Police`) sono i più resilienti alla regolarizzazione, confermando che il settore professionale è il fattore esplicativo principale del livello salariale. Al contrario, le interazioni legate al genere si contraggono molto più rapidamente, indicando un impatto relativo decisamente inferiore rispetto alla struttura salariale di base.*
+#### Percorso A: Gradient Boosting e Interpretabilità SHAP
+
+Per catturare complesse non-linearità strutturali e interazioni implicite tra Genere, Anno e Dipartimento senza doverle specificare a priori (come fatto nell'OLS), abbiamo modellato il salario totale utilizzando **XGBoost** (`XGBRegressor`).
+
+Per l'interpretabilità, abbiamo estratto i valori **SHAP** (SHapley Additive exPlanations) tramite `TreeExplainer`. I valori SHAP si basano sulla teoria dei giochi cooperativi e distribuiscono equamente l'impatto predittivo tra le feature. L'equazione dei valori di Shapley per una feature $i$ è definita come:
+
+$$ \phi_i(v) = \sum_{S \subseteq N \setminus \{i\}} \frac{|S|! (n - |S| - 1)!}{n!} (v(S \cup \{i\}) - v(S)) $$
+
+dove $N$ è l'insieme di tutte le feature, $S$ è un sottoinsieme di feature, e $v(S)$ è il valore atteso della predizione condizionata a $S$.
+
+#### Percorso B: Double Machine Learning (DML) per Inferenza Causale
+
+Per stimare rigorosamente l'**Average Treatment Effect (ATE)** del genere sul salario al netto dei fattori confondenti, abbiamo implementato un framework **Double Machine Learning (DML)**.
+Il modello si basa su un Partial Linear Model (PLM):
+$$ Y = \theta T + g(X) + \varepsilon \quad \text{con} \quad \mathbb{E}[\varepsilon | T, X] = 0 $$
+dove il trattamento $T$ è il Genere (0 = Maschio, 1 = Femmina), $Y$ è il salario totale, e $X$ è la matrice dei controlli discreti rigorosamente depurata dall'anzianità.
+
+Per isolare l'effetto causale $\theta$, utilizziamo un approccio di **cross-fitting manuale** tramite `cross_val_predict` per stimare i nuisance parameters (il salario atteso $\mathbb{E}[Y|X]$ tramite `RandomForestRegressor` e la propensione al trattamento $\mathbb{E}[T|X]$ tramite `RandomForestClassifier`), ottenendo stime *out-of-fold*. Procediamo quindi con l'ortogonalizzazione dei residui:
+$$ \tilde{Y} = Y - \hat{\mathbb{E}}[Y|X], \quad \tilde{T} = T - \hat{\mathbb{E}}[T|X] $$
+
+Questo approccio sfrutta la **condizione di ortogonalità di Neyman**, che rende la stima di $\theta$ insensibile a piccoli errori nella stima flessibile dei nuisance parameters, garantendo la convergenza a tasso $\sqrt{N}$ dello stimatore tramite il **teorema di Frisch-Waugh-Lovell generalizzato**:
+$$ \hat{\theta} = (\tilde{T}^T \tilde{T})^{-1} \tilde{T}^T \tilde{Y} $$
+
+**Risultati dell'Inferenza Causale (ATE)**
+- **Effetto Causale Stimato ($\hat{\theta}$):** $-8581.20 \$$
+- **p-value:** $2.5345 \times 10^{-197}$
+- **Intervallo di Confidenza 95%:** $[-9141.17, -8021.22]$
 
 ---
 
@@ -225,11 +252,15 @@ Effetto dell'interazione tra genere ed anni di servizio. Le bande ombreggiate ra
 
 ---
 
-### 3. Regolarizzazione Ridge
+### 3. Machine Learning: XGBoost e SHAP
 
-#### Path di Contrazione Ridge (Shrinkage Path)
-Shrinkage analitico dei coefficienti standardizzati del modello al variare del parametro di regolarizzazione $\lambda \in [10^{-2}, 10^{10}]$.
-![Ridge Shrinkage Path](plots/ridge_path.png)
+#### SHAP Summary Plot
+Impatto globale delle feature sul modello XGBoost, con esclusione dell'anzianità. L'ordine verticale indica l'importanza della feature.
+![SHAP Summary Plot](plots/shap_summary.png)
+
+#### SHAP Dependence Plot
+Interazione non-lineare e strutturale del divario retributivo in base al Genere, evidenziando come l'appartenenza a dipartimenti specifici (es. `Job_Medical`) ne moduli l'impatto complessivo.
+![SHAP Dependence Plot](plots/shap_dependence.png)
 
 ---
 
