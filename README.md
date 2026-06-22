@@ -178,7 +178,7 @@ Per escludere distorsioni nelle stime e nel calcolo delle varianze dovute a coll
 
 ### 7. Regolarizzazione Ridge e Analisi dei Coefficienti
 
-Per analizzare la stabilità e contrazione dei nostri coefficienti, abbiamo calcolato analiticamente lo stimatore Ridge al variare di $\lambda \in [10^{-2}, 10^5]$ su covariate standardizzate (per evitare penalizzazioni inique dovute a scale differenti):
+Per analizzare la stabilità e contrazione dei nostri coefficienti, abbiamo calcolato analiticamente lo stimatore Ridge al variare di $\lambda \in [10^{-2}, 10^{10}]$ su covariate standardizzate (per evitare penalizzazioni inique dovute a scale differenti):
 $$\hat{\vec{\beta}}\_{RR}(\lambda) = (Z\_{\text{std}}^T Z\_{\text{std}} + \lambda I)^{-1} Z\_{\text{std}}^T \vec{y}\_{\text{centrata}}$$
 
 *Il grafico del Ridge Path (`ridge_path.png`) mostra che i coefficienti professionali (`Job_Education`, `Job_Fire`, `Job_Police`) sono i più resilienti alla regolarizzazione, confermando che il settore professionale è il fattore esplicativo principale del livello salariale. Al contrario, le interazioni legate al genere si contraggono molto più rapidamente, indicando un impatto relativo decisamente inferiore rispetto alla struttura salariale di base.*
@@ -193,23 +193,23 @@ Di seguito viene riportata la galleria completa delle visualizzazioni e dei test
 
 #### A. Diagnostica dei Residui del Modello Naïve
 Residui a ventaglio (eteroschedasticità) e allontanamento dalla normalità sulle code prima della trasformazione.
-![Diagnostica OLS Naïve](ols_diagnostics.png)
+![Diagnostica OLS Naïve](plots/ols_diagnostics.png)
 
 #### B. Profilo di Log-Verosimiglianza Box-Cox
 Picco MLE del profilo di verosimiglianza stimato a $\lambda = 0.5969$, con l'arrotondamento accademico a $\lambda = 0.5$ per preservare l'interpretabilità.
-![Box-Cox Likelihood](boxcox_likelihood.png)
+![Box-Cox Likelihood](plots/boxcox_likelihood.png)
 
 #### C. Distribuzione Salariale Prima e Dopo la Trasformazione
 L'istogramma a sinistra mostra la forte asimmetria a destra della retribuzione originale. A destra, la trasformazione radice quadrata ($\lambda = 0.5$) normalizza e simmetrizza l'intera distribuzione.
-![Distribuzione Salariale Grezza vs Trasformata](salary_distribution.png)
+![Distribuzione Salariale Grezza vs Trasformata](plots/salary_distribution.png)
 
 #### D. Diagnostica del Modello Trasformato ($\lambda = 0.5$)
 Dopo l'applicazione di $\sqrt{Y}$, la varianza dei residui si stabilizza e il Q-Q Plot risulta nettamente linearizzato.
-![Diagnostica Modello Trasformato](transformed_diagnostics.png)
+![Diagnostica Modello Trasformato](plots/transformed_diagnostics.png)
 
 #### E. Diagnostica Avanzata (Leverage e Distanza di Cook)
 Leva individuale con la soglia teorica $2(r+1)/n$ (linea tratteggiata rossa) e distanze di Cook con etichettatura automatica dei primi 5 outlier più influenti, guidati da figure dirigenziali come `Joanne Hayes-White`.
-![Leva e Cook's Distance](leverage_cooks.png)
+![Leva e Cook's Distance](plots/leverage_cooks.png)
 
 ---
 
@@ -217,19 +217,19 @@ Leva individuale con la soglia teorica $2(r+1)/n$ (linea tratteggiata rossa) e d
 
 #### A. Pay Gap per Macro-Categoria Professionale
 Boxplot comparativo che illustra la distribuzione dei salari per genere e ruolo aziendale, evidenziando le asimmetrie distributive.
-![Gender Pay Gap per Settore](gender_pay_gap_by_job.png)
+![Gender Pay Gap per Settore](plots/gender_pay_gap_by_job.png)
 
 #### B. Evoluzione del Gap Salariale con l'Anzianità
 Effetto dell'interazione tra genere ed anni di servizio. Le bande ombreggiate rappresentano gli intervalli di confidenza al 95%.
-![Evoluzione Pay Gap con Anzianità](seniority_pay_gap.png)
+![Evoluzione Pay Gap con Anzianità](plots/seniority_pay_gap.png)
 
 ---
 
 ### 3. Regolarizzazione Ridge
 
 #### Path di Contrazione Ridge (Shrinkage Path)
-Shrinkage analitico dei coefficienti standardizzati del modello al variare del parametro di regolarizzazione $\lambda \in [10^{-2}, 10^5]$.
-![Ridge Shrinkage Path](ridge_path.png)
+Shrinkage analitico dei coefficienti standardizzati del modello al variare del parametro di regolarizzazione $\lambda \in [10^{-2}, 10^{10}]$.
+![Ridge Shrinkage Path](plots/ridge_path.png)
 
 ---
 
