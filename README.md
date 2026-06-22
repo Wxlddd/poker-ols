@@ -197,13 +197,11 @@ Per escludere distorsioni nelle stime e nel calcolo delle varianze dovute a coll
 
 ---
 
-### 7. Machine Learning e Inferenza Causale
+### 7. Interpretabilità Non-Lineare: XGBoost e Valori SHAP
 
 > [!IMPORTANT]
 > **Correzione Metodologica: Esclusione dell'Anzianità**
-> La variabile `Seniority` (proxy per anni di servizio) è stata valutata come inaffidabile e soggetta a forte rumore di misurazione nel dataset. Per evitare **overfitting sul rumore di misurazione** nei modelli ad albero (misinterpreting variance) e mitigare l'**Omitted Variable Bias** nelle stime causali, `Seniority` e tutte le sue interazioni sono state **totalmente escluse** dalle pipeline di Machine Learning e DML seguenti. I controlli includono esclusivamente dipartimento (macro-categoria) e anno.
-
-#### Percorso A: Gradient Boosting e Interpretabilità SHAP
+> La variabile `Seniority` (proxy per anni di servizio) è stata valutata come inaffidabile e soggetta a forte rumore di misurazione nel dataset. Per evitare **overfitting sul rumore di misurazione** nei modelli ad albero (misinterpreting variance), `Seniority` e tutte le sue interazioni sono state **totalmente escluse** dalla pipeline di Machine Learning seguente. I controlli includono esclusivamente dipartimento (macro-categoria) e anno.
 
 Per catturare complesse non-linearità strutturali e interazioni implicite tra Genere, Anno e Dipartimento senza doverle specificare a priori (come fatto nell'OLS), abbiamo modellato il salario totale utilizzando **XGBoost** (`XGBRegressor`).
 
@@ -214,9 +212,6 @@ $$ \phi_i(v) = \sum_{S \subseteq N \setminus \{i\}} \frac{|S|! (n - |S| - 1)!}{n
 **Performance Out-of-Sample (XGBoost):**
 * **RMSE:** $42.900,19$
 * **$R^2$:** $0,2916$
-
-![XGBoost Pred vs Actual](plots/xgb_pred_vs_actual.png)
-*Confronto tra salario reale e salario predetto dal modello XGBoost sul test set.*
 
 **Interpretazione Analitica dello SHAP Summary Plot:**
 Dal grafico riassuntivo emergono tre chiare evidenze geometriche:
@@ -229,27 +224,6 @@ Dal grafico riassuntivo emergono tre chiare evidenze geometriche:
 
 ![SHAP Summary Plot](plots/shap_summary.png)
 *SHAP Summary Plot: mostra l'impatto globale e la direzione di ciascuna variabile sulla predizione del singolo individuo.*
-
-#### Percorso B: Double Machine Learning (DML) per Inferenza Causale
-
-Per stimare rigorosamente l'**Average Treatment Effect (ATE)** del genere sul salario al netto dei fattori confondenti, abbiamo implementato un framework **Double Machine Learning (DML)**.
-Il modello si basa su un Partial Linear Model (PLM):
-$$ Y = \theta T + g(X) + \varepsilon \quad \text{con} \quad \mathbb{E}[\varepsilon | T, X] = 0 $$
-dove il trattamento $T$ è il Genere (0 = Maschio, 1 = Femmina), $Y$ è il salario totale, e $X$ è la matrice dei controlli discreti rigorosamente depurata dall'anzianità.
-
-Per isolare l'effetto causale $\theta$, utilizziamo un approccio di **cross-fitting manuale** tramite `cross_val_predict` per stimare i nuisance parameters (il salario atteso $\mathbb{E}[Y|X]$ tramite `RandomForestRegressor` e la propensione al trattamento $\mathbb{E}[T|X]$ tramite `RandomForestClassifier`), ottenendo stime *out-of-fold*. Procediamo quindi con l'ortogonalizzazione dei residui:
-$$ \tilde{Y} = Y - \hat{\mathbb{E}}[Y|X], \quad \tilde{T} = T - \hat{\mathbb{E}}[T|X] $$
-
-Questo approccio sfrutta la **condizione di ortogonalità di Neyman**, che rende la stima di $\theta$ insensibile a piccoli errori nella stima flessibile dei nuisance parameters, garantendo la convergenza a tasso $\sqrt{N}$ dello stimatore tramite il **teorema di Frisch-Waugh-Lovell generalizzato**:
-$$ \hat{\theta} = (\tilde{T}^T \tilde{T})^{-1} \tilde{T}^T \tilde{Y} $$
-
-**Risultati dell'Inferenza Causale (ATE)**
-- **Effetto Causale Stimato ($\hat{\theta}$):** **$-8581.20 \$$**
-- **p-value:** $2.53 \times 10^{-197}$
-- **Intervallo di Confidenza 95%:** $[-9141.17, -8021.22]$
-
-**Interpretazione dell'ATE:**
-Il valore calcolato di $\hat{\theta}$ rappresenta il divario salariale netto, rigorosamente **purificato** da tutte le complesse dinamiche settoriali e temporali descritte dallo SHAP. È la traduzione numerica del vero "costo di essere donna" a parità di tutte le altre condizioni osservabili (*ceteris paribus*, escludendo l'anzianità per inaffidabilità). Al netto della segregazione occupazionale, il trattamento genera una penalizzazione salariale strutturale stimata di 8581 dollari.
 
 ---
 
