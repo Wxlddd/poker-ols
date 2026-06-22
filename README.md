@@ -93,12 +93,37 @@ Rilevato su un sottocampione casuale di $5.000$ osservazioni per superare l'iper
 ---
 
 ### 3. Analisi della Multicollinearità (VIF)
-Tutti i Variance Inflation Factors (VIF) calcolati sulle covariate sono inferiori a **$5.0$**, escludendo problematiche di multicollinearità e confermando la stabilità delle stime OLS.
+
+Per escludere distorsioni nelle stime e nel calcolo delle varianze dovute a collinearità tra dummy lavorative, temporali e termini di interazione, abbiamo calcolato i **Variance Inflation Factors (VIF)** per tutte le covariate:
+
+| Covariata | Valore VIF | Stato Collinearità |
+| :--- | :---: | :---: |
+| **Seniority** | 4.53 | Bassa (Sotto Soglia 5.0) |
+| **Gender x Job_Medical** | 4.50 | Bassa (Sotto Soglia 5.0) |
+| **Job_Medical** | 4.11 | Bassa (Sotto Soglia 5.0) |
+| **Year_2014** | 3.07 | Bassa (Sotto Soglia 5.0) |
+| **Gender** | 2.96 | Bassa (Sotto Soglia 5.0) |
+| **Gender x Seniority** | 2.48 | Bassa (Sotto Soglia 5.0) |
+| **Year_2012** | 2.18 | Bassa (Sotto Soglia 5.0) |
+| **Gender x Job_Education** | 2.05 | Bassa (Sotto Soglia 5.0) |
+| **Job_Education** | 1.99 | Bassa (Sotto Soglia 5.0) |
+| **Job_Police** | 1.49 | Bassa (Sotto Soglia 5.0) |
+| **Gender x Job_Police** | 1.46 | Bassa (Sotto Soglia 5.0) |
+| **Year_2013** | 1.36 | Bassa (Sotto Soglia 5.0) |
+| **Job_Fire** | 1.25 | Bassa (Sotto Soglia 5.0) |
+| **Gender x Job_Fire** | 1.23 | Bassa (Sotto Soglia 5.0) |
+
+> [!TIP]
+> **Assenza di Collinearità Critica**: Poiché tutti i VIF sono ampiamente al di sotto del valore critico di **$5.0$**, possiamo escludere problemi legati a multicollinearità. Gli stimatori OLS rimangono stabili, efficienti e a varianza minima (teorema di Gauss-Markov confermato).
 
 ---
 
-### 4. Regolarizzazione Ridge
-La contrazione analitica Ridge su covariate standardizzate (`ridge_path.png`) rivela che le dummy dei settori occupazionali (`Job_Education`, `Job_Fire`, `Job_Police`) sono le più resilienti alla regolarizzazione, a indicare che la struttura occupazionale è il fattore principale nel determinare i livelli retributivi rispetto ai fattori di genere.
+### 4. Regolarizzazione Ridge e Analisi dei Coefficienti
+
+Per analizzare la stabilità e contrazione dei nostri coefficienti, abbiamo calcolato analiticamente lo stimatore Ridge al variare di $\lambda \in [10^{-2}, 10^{10}]$ su covariate standardizzate (per evitare penalizzazioni inique dovute a scale differenti):
+$$\hat{\vec{\beta}}\_{RR}(\lambda) = (Z\_{\text{std}}^T Z\_{\text{std}} + \lambda I)^{-1} Z\_{\text{std}}^T \vec{y}\_{\text{centrata}}$$
+
+*Il grafico del Ridge Path (`plots/ridge_path.png`) mostra che i coefficienti professionali (`Job_Education`, `Job_Fire`, `Job_Police`) sono i più resilienti alla regolarizzazione, confermando che il settore professionale è il fattore esplicativo principale del livello salariale. Al contrario, le interazioni legate al genere si contraggono molto più rapidamente, indicando un impatto relativo decisamente inferiore rispetto alla struttura salariale di base.*
 
 ---
 
@@ -112,39 +137,39 @@ Confrontando il modello saturo con quello ridotto (escludendo le variabili di ge
 
 ### 6. Visual Diagnostic Showcase (Parte I)
 
-Di seguito viene riportata la galleria delle visualizzazioni e dei test diagnostici del modello OLS principale.
+Di seguito viene riportata la galleria delle visualizzazioni e dei test diagnostici generati dal nostro workflow statistico per il modello OLS principale.
 
 #### A. Diagnostica dei Residui del Modello Naïve
 Residui a ventaglio (eteroschedasticità) e allontanamento dalla normalità sulle code prima della trasformazione.
-![Diagnostica OLS Naïve](ols_diagnostics.png)
+![Diagnostica OLS Naïve](plots/ols_diagnostics.png)
 
 #### B. Profilo di Log-Verosimiglianza Box-Cox
 Picco MLE del profilo di verosimiglianza stimato a $\lambda = 0.5969$, con l'arrotondamento accademico a $\lambda = 0.5$ per preservare l'interpretabilità.
-![Box-Cox Likelihood](boxcox_likelihood.png)
+![Box-Cox Likelihood](plots/boxcox_likelihood.png)
 
 #### C. Distribuzione Salariale Prima e Dopo la Trasformazione
 L'istogramma a sinistra mostra la forte asimmetria a destra della retribuzione originale. A destra, la trasformazione radice quadrata ($\lambda = 0.5$) normalizza e simmetrizza l'intera distribuzione.
-![Distribuzione Salariale Grezza vs Trasformata](salary_distribution.png)
+![Distribuzione Salariale Grezza vs Trasformata](plots/salary_distribution.png)
 
 #### D. Diagnostica del Modello Trasformato ($\lambda = 0.5$)
 Dopo l'applicazione di $\sqrt{Y}$, la varianza dei residui si stabilizza e il Q-Q Plot risulta nettamente linearizzato.
-![Diagnostica Modello Trasformato](transformed_diagnostics.png)
+![Diagnostica Modello Trasformato](plots/transformed_diagnostics.png)
 
 #### E. Diagnostica Avanzata (Leverage e Distanza di Cook)
 Leva individuale con la soglia teorica $2(r+1)/n$ (linea tratteggiata rossa) e distanze di Cook con etichettatura automatica dei primi 5 outlier più influenti, guidati da figure dirigenziali come `Joanne Hayes-White`.
-![Leva e Cook's Distance](leverage_cooks.png)
+![Leva e Cook's Distance](plots/leverage_cooks.png)
 
 #### F. Pay Gap per Macro-Categoria Professionale
 Boxplot comparativo che illustra la distribuzione dei salari per genere e ruolo aziendale, evidenziando le asimmetrie distributive.
-![Gender Pay Gap per Settore](gender_pay_gap_by_job.png)
+![Gender Pay Gap per Settore](plots/gender_pay_gap_by_job.png)
 
 #### G. Evoluzione del Gap Salariale con l'Anzianità
 Effetto dell'interazione tra genere ed anni di servizio. Le bande ombreggiate rappresentano gli intervalli di confidenza al 95%.
-![Evoluzione Pay Gap con Anzianità](seniority_pay_gap.png)
+![Evoluzione Pay Gap con Anzianità](plots/seniority_pay_gap.png)
 
 #### H. Path di Contrazione Ridge (Shrinkage Path)
-Shrinkage analitico dei coefficienti standardizzati del modello al variare del parametro di regolarizzazione $\lambda \in [10^{-2}, 10^5]$.
-![Ridge Shrinkage Path](ridge_path.png)
+Shrinkage analitico dei coefficienti standardizzati del modello al variare del parametro di regolarizzazione $\lambda \in [10^{-2}, 10^{10}]$.
+![Ridge Shrinkage Path](plots/ridge_path.png)
 
 ---
 
@@ -177,9 +202,9 @@ La tabella seguente riassume la distribuzione di genere all'interno di ciascuna 
 
 ### 2. Visualizzazione Grafica della Segregazione
 
-Il grafico sottostante (`occupational_segregation.png`) rappresenta visivamente il bilanciamento di genere all'interno di ciascun settore, evidenziando il forte sbilanciamento distributivo (utilizzando la palette di colori istituzionale: blu per gli uomini, rosa per le donne):
+Il grafico sottostante (`plots/occupational_segregation.png`) rappresenta visivamente il bilanciamento di genere all'interno di ciascun settore, evidenziando il forte sbilanciamento distributivo (utilizzando la palette di colori istituzionale: blu per gli uomini, rosa per le donne):
 
-![Segregazione Occupazionale per Settore](occupational_segregation.png)
+![Segregazione Occupazionale per Settore](plots/occupational_segregation.png)
 
 ---
 
@@ -195,8 +220,9 @@ uv run gender_analysis.py
 Questo avvierà in modo sequenziale:
 1. La pulizia dei dati e l'estrazione dei nomi di battesimo da `Salaries.csv`.
 2. La classificazione automatica e ottimizzata del genere.
-3. La stima del modello OLS trasformato Box-Cox ($\lambda = 0.5$) con relativi test diagnostici e scomposizioni.
-4. Il calcolo delle statistiche descrittive sulla segregazione occupazionale e la generazione del relativo stacked bar chart (`occupational_segregation.png`).
+3. Creazione automatica della directory `plots/` se non presente.
+4. La stima del modello OLS trasformato Box-Cox ($\lambda = 0.5$) con relativi test diagnostici e scomposizioni.
+5. Il calcolo delle statistiche descrittive sulla segregazione occupazionale e la generazione del relativo stacked bar chart (`plots/occupational_segregation.png`).
 
 ---
 
