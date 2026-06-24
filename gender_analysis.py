@@ -467,9 +467,9 @@ def main():
         color='#1f77b4'
     )
     axes[0].axhline(0, color='red', linestyle='--', linewidth=1.5)
-    axes[0].set_title('Residuals vs Fitted (Subsampled 10k)')
-    axes[0].set_xlabel('Fitted Values ($y_{hat}$)')
-    axes[0].set_ylabel('Residuals ($e$)')
+    axes[0].set_title('Residui vs Valori Fittati (Modello Naïve - Subsample 10k)')
+    axes[0].set_xlabel('Valori Fittati ($\hat{y}$)')
+    axes[0].set_ylabel('Residui ($e$)')
     
     # Plot 2: Normal Q-Q Plot
     # Standardize studentized residuals and compare quantiles
@@ -491,9 +491,9 @@ def main():
     intercept = y25 - slope * x25
     axes[1].plot(theoretical_quantiles, slope * theoretical_quantiles + intercept, color='red', linestyle='-', linewidth=1.5)
     
-    axes[1].set_title('Normal Q-Q Plot')
-    axes[1].set_xlabel('Theoretical Quantiles')
-    axes[1].set_ylabel('Studentized Residuals')
+    axes[1].set_title('Q-Q Plot Normale (Modello Naïve)')
+    axes[1].set_xlabel('Quantili Teorici')
+    axes[1].set_ylabel('Residui Studentizzati')
     
     plt.tight_layout()
     plt.savefig('plots/ols_diagnostics.png', dpi=150)
@@ -799,9 +799,9 @@ def main():
         color='#9467bd'
     )
     axes[0].axhline(0, color='red', linestyle='--', linewidth=1.5)
-    axes[0].set_title('Transformed Residuals vs Fitted (Subsampled 10k)')
-    axes[0].set_xlabel('Transformed Fitted Values ($y_{hat}$)')
-    axes[0].set_ylabel('Transformed Residuals ($e$)')
+    axes[0].set_title('Residui vs Valori Fittati (Modello Trasformato - Subsample 10k)')
+    axes[0].set_xlabel('Valori Fittati Trasformati ($\hat{y}$)')
+    axes[0].set_ylabel('Residui Trasformati ($e$)')
     
     # Plot 2: Normal Q-Q Plot
     # Compute new studentized residuals for transformed model
@@ -825,9 +825,9 @@ def main():
     intercept_t = y25_t - slope_t * x25
     axes[1].plot(theoretical_quantiles, slope_t * theoretical_quantiles + intercept_t, color='red', linestyle='-', linewidth=1.5)
     
-    axes[1].set_title('Transformed Normal Q-Q Plot')
-    axes[1].set_xlabel('Theoretical Quantiles')
-    axes[1].set_ylabel('Studentized Residuals')
+    axes[1].set_title('Q-Q Plot Normale (Modello Trasformato)')
+    axes[1].set_xlabel('Quantili Teorici')
+    axes[1].set_ylabel('Residui Studentizzati')
     
     plt.tight_layout()
     plt.savefig('plots/transformed_diagnostics.png', dpi=150)
@@ -952,7 +952,7 @@ def main():
     
     # Customize axes and title
     ax.set_xlabel('Variance Inflation Factor (VIF)', fontsize=11, color='#2c3e50', fontweight='bold', labelpad=10)
-    ax.set_title('Variance Inflation Factor (VIF) per Covariata\n(Collinearità strutturale attesa per interazioni ed Effect Coding)', fontsize=13, color='#2c3e50', fontweight='bold', pad=15)
+    ax.set_title('Variance Inflation Factor (VIF)', fontsize=13, color='#2c3e50', fontweight='bold', pad=15)
     
     # Set limit to 6 to give some breathing room for annotations and show the threshold line clearly
     max_vif = vif_plot_df["VIF"].max()
