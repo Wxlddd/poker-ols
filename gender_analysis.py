@@ -354,7 +354,7 @@ def main():
     ax.spines['bottom'].set_color('#2c3e50')
     
     ax.tick_params(colors='#2c3e50')
-    ax.legend(loc='center', frameon=True, facecolor='white', edgecolor='#cccccc')
+    ax.legend(bbox_to_anchor=(1.02, 1), loc='upper left', frameon=True, facecolor='white', edgecolor='#cccccc')
     
     plt.tight_layout()
     plt.savefig('plots/leverage.png', dpi=150)
