@@ -452,7 +452,7 @@ def main():
         
     # Generate OLS Diagnostic Plots
     print("\nGenerating OLS Diagnostic Plots...")
-    fig, axes = plt.subplots(1, 2, figsize=(14, 6))
+    fig, axes = plt.subplots(1, 3, figsize=(18, 5.5))
     
     # Subsample 10,000 random points for visualization to avoid dense cluttering
     sample_indices = np.random.choice(n, size=min(10000, n), replace=False)
@@ -494,6 +494,18 @@ def main():
     axes[1].set_title('Normal Q-Q Plot')
     axes[1].set_xlabel('Theoretical Quantiles')
     axes[1].set_ylabel('Studentized Residuals')
+    
+    # Plot 3: Histogram of Residuals with Fitted Normal Curve
+    sns.histplot(residuals, kde=False, stat="density", ax=axes[2], color='#1f77b4', bins=50, alpha=0.6)
+    mu, std = stats.norm.fit(residuals)
+    xmin, xmax = axes[2].get_xlim()
+    x = np.linspace(xmin, xmax, 100)
+    p = stats.norm.pdf(x, mu, std)
+    axes[2].plot(x, p, 'r-', linewidth=2, label=f'Gaussiana\n(μ={mu:.2f}, σ={std:.2f})')
+    axes[2].set_title('Istogramma dei Residui vs Normal')
+    axes[2].set_xlabel('Residui ($e$)')
+    axes[2].set_ylabel('Densità')
+    axes[2].legend()
     
     plt.tight_layout()
     plt.savefig('plots/ols_diagnostics.png', dpi=150)
@@ -773,7 +785,7 @@ def main():
         print("Result: Fail to reject H0. Transformed residuals are homoscedastic!")
         
     # Generate Transformed OLS Diagnostic Plots
-    fig, axes = plt.subplots(1, 2, figsize=(14, 6))
+    fig, axes = plt.subplots(1, 3, figsize=(18, 5.5))
     
     # Plot 1: Residuals vs Fitted
     sns.scatterplot(
@@ -814,6 +826,18 @@ def main():
     axes[1].set_title('Transformed Normal Q-Q Plot')
     axes[1].set_xlabel('Theoretical Quantiles')
     axes[1].set_ylabel('Studentized Residuals')
+    
+    # Plot 3: Histogram of Residuals with Fitted Normal Curve
+    sns.histplot(residuals_trans, kde=False, stat="density", ax=axes[2], color='#9467bd', bins=50, alpha=0.6)
+    mu_t, std_t = stats.norm.fit(residuals_trans)
+    xmin_t, xmax_t = axes[2].get_xlim()
+    x_t = np.linspace(xmin_t, xmax_t, 100)
+    p_t = stats.norm.pdf(x_t, mu_t, std_t)
+    axes[2].plot(x_t, p_t, 'r-', linewidth=2, label=f'Gaussiana\n(μ={mu_t:.2f}, σ={std_t:.2f})')
+    axes[2].set_title('Istogramma dei Residui vs Normal')
+    axes[2].set_xlabel('Residui Trasformati ($e$)')
+    axes[2].set_ylabel('Densità')
+    axes[2].legend()
     
     plt.tight_layout()
     plt.savefig('plots/transformed_diagnostics.png', dpi=150)
