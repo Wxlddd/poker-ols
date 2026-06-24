@@ -1124,7 +1124,7 @@ def main():
     plt.xlim(0, 100)
     plt.xlabel('Percentuale (%)')
     plt.title('Segregazione Occupazionale: Bilanciamento di Genere per Settore\n(Ordinato da massima densità maschile a massima densità femminile)')
-    plt.legend(loc='lower left', frameon=True)
+    plt.legend(bbox_to_anchor=(1.02, 1), loc='upper left', frameon=True)
     
     plt.gca().invert_yaxis()
     
