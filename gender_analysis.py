@@ -952,7 +952,7 @@ def main():
     
     # Customize axes and title
     ax.set_xlabel('Variance Inflation Factor (VIF)', fontsize=11, color='#2c3e50', fontweight='bold', labelpad=10)
-    ax.set_title('Variance Inflation Factor (VIF) per Covariata\n(Tutte le covariate risultano stabili con VIF < 5.0)', fontsize=13, color='#2c3e50', fontweight='bold', pad=15)
+    ax.set_title('Variance Inflation Factor (VIF) per Covariata\n(Collinearità strutturale attesa per interazioni ed Effect Coding)', fontsize=13, color='#2c3e50', fontweight='bold', pad=15)
     
     # Set limit to 6 to give some breathing room for annotations and show the threshold line clearly
     max_vif = vif_plot_df["VIF"].max()
