@@ -139,9 +139,9 @@ def main():
         palette={'Uomo (0)': '#1f77b4', 'Donna (1)': '#e377c2'},
         showfliers=False
     )
-    plt.title('Distribuzione della Retribuzione Totale per Macro-Categoria e Genere')
-    plt.xlabel('Macro-Categoria Lavorativa')
-    plt.ylabel('Total Pay ($)')
+    plt.title('Distribuzione del Salario per Categoria e Genere')
+    plt.xlabel('')
+    plt.ylabel('Salario ($)')
     plt.legend(title='Genere')
     plt.tight_layout()
     plt.savefig('plots/gender_pay_gap_by_job.png', dpi=150)
