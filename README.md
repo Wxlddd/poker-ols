@@ -7,7 +7,7 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg?style=for-the-badge)](https://opensource.org/licenses/MIT)
 
 > [!NOTE]
-> **Vetrina del Progetto Accademico**: Questo repository ospita un workflow econometrico e di economia del lavoro in Python. Il lavoro è strutturato in due parti principali: una prima parte dedicata all'analisi OLS classica con trasformazione ottimale Box-Cox ($\lambda = 0.5$) e relativa diagnostica di Gauss-Markov, ed una seconda parte dedicata all'analisi descrittiva e visualizzazione della **segregazione occupazionale**, evidenziata come driver fondamentale del divario retributivo anche dai benchmark di Machine Learning (XGBoost).
+> **Vetrina del Progetto Accademico**: Questo repository ospita un workflow econometrico e di economia del lavoro in Python. Il lavoro è strutturato in due parti principali: una prima parte dedicata all'analisi OLS classica con trasformazione logaritmica ($\log(Y)$) su dataset filtrato full-time ($> \$30.000$) per evitare distorsioni da contratti part-time, ed una seconda parte dedicata all'analisi descrittiva e visualizzazione della **segregazione occupazionale**, evidenziata come driver fondamentale del divario retributivo anche dai benchmark di Machine Learning (XGBoost).
 
 ---
 
@@ -18,9 +18,9 @@ Questo studio verifica le proprietà geometriche ed econometriche del modello li
 ### 1. Specificazione del Modello e Invertibilità
 Modelliamo la retribuzione totale $Y$ tramite regressione lineare multipla:
 $$\vec{y} = Z\vec{\beta} + \vec{\varepsilon}$$
-dove $Z$ è la matrice di disegno contenente l'intercetta, la dummy di genere, l'anzianità, le dummy di anno, le dummy di macro-categoria lavorativa e i relativi termini di interazione.
+dove $Z$ è la matrice di disegno contenente l'intercetta, la dummy di genere, l'anzianità, le dummy di anno, le variabili di macro-categoria lavorativa e i relativi termini di interazione.
 Per garantire l'esistenza e l'unicità dello stimatore OLS:
-$$\hat{\vec{\beta}}\_{OLS} = (Z^T Z)^{-1} Z^T \vec{y}$$
+$$\hat{\vec{\beta}}\_OLS = (Z^T Z)^{-1} Z^T \vec{y}$$
 verifichiamo che la matrice $Z$ sia a **rango colonna pieno** ($\text{rango}(Z) = r + 1$), garantendo l'invertibilità di $Z^T Z$.
 
 ### 2. Decomposizione della Varianza e Ortogonalità
@@ -32,135 +32,129 @@ $$\hat{\vec{y}}^T \hat{\vec{\varepsilon}} = 0$$
 ### 3. Matrice Hat, Leverage e Distanza di Cook
 Il vettore delle previsioni $\hat{\vec{y}}$ è proiettato sullo spazio delle colonne di $Z$ tramite la **Matrice Hat** $H$:
 $$\hat{\vec{y}} = H\vec{y}, \quad H = Z(Z^T Z)^{-1} Z^T$$
-I valori sulla diagonale $h\_{ii} \in [0,1]$ misurano la leva (leverage). I punti di leva critici soddisfano la soglia:
-$$h\_{ii} > \frac{2(r+1)}{n}$$
+I valori sulla diagonale $h\_ii \in [0,1]$ misurano la leva (leverage). I punti di leva critici soddisfano la soglia:
+$$h\_ii > \frac{2(r+1)}{n}$$
 Per valutare l'influenza di ciascun punto sul vettore dei coefficienti $\hat{\vec{\beta}}$, calcoliamo la **Distanza di Cook** $D\_i$:
-$$D\_i = \frac{t\_i^2}{r+1} \left( \frac{h\_{ii}}{1 - h\_{ii}} \right)$$
+$$D\_i = \frac{t\_i^2}{r+1} \left( \frac{h\_ii}{1 - h\_ii} \right)$$
 dove $t\_i$ rappresenta il residuo studentizzato internamente.
 
-### 4. Trasformazione Box-Cox per la Stabilizzazione della Varianza
-In presenza di eteroschedasticità, applichiamo la trasformazione di potenza di **Box-Cox** sulla risposta continua $Y$:
-$$Y^{(\lambda)} = \begin{cases} \frac{Y^\lambda - 1}{\lambda} & \text{se } \lambda \neq 0 \\ \ln(Y) & \text{se } \lambda = 0 \end{cases}$$
-Il parametro ottimale $\lambda$ viene stimato tramite Massima Verosimiglianza (MLE), massimizzando il profilo di log-verosimiglianza:
-$$L(\lambda) = -\frac{n}{2} \ln(\text{Var}(Y^{(\lambda)})) + (\lambda - 1) \sum\_{i=1}^n \ln(y\_i)$$
+### 4. Trasformazione Logaritmica per la Stabilizzazione della Varianza e Interpretazione (Box-Cox $\lambda = 0.0$)
+In presenza di eteroschedasticità e asimmetria distributiva dei salari, applichiamo la trasformazione logaritmica sulla risposta continua $Y$ (corrispondente al limite $\lambda \to 0$ della famiglia di trasformazioni Box-Cox):
+$$\ln(Y)$$
+Questo permette di interpretare direttamente i coefficienti stimati $\beta$ come semielasticità: a parità di altre condizioni, un incremento unitario della covariata si traduce in una variazione percentuale approssimativa di $100 \times \beta$ sul salario medio globale (grand mean).
 
 ---
 
-## PARTE I: Analisi Econometrica Principale e Diagnostica (Box-Cox $\lambda = 0.5$)
+## PARTE I: Analisi Econometrica Principale e Diagnostica (Trasformazione Logaritmica $\lambda = 0.0$)
 
-In questa prima sezione viene presentata l'analisi principale, condotta sulla scala Box-Cox arrotondata a $\lambda = 0.5$ per massimizzarne l'interpretabilità econometrica (trasformazione radice quadrata).
+In questa prima sezione viene presentata l'analisi principale, condotta sulla scala logaritmica $\ln(Y)$ per massimizzare l'interpretabilità economica e la stabilità del modello. Il dataset è stato preventivamente filtrato per lavoratori full-time (`BasePay > 30000` & `TotalPay > 30000`).
 
 ### 1. Stime OLS e Standard Error Robusti (HC3)
-Il fitting dell'OLS sulla scala trasformata $Y^{(0.5)}$ con deviazioni standard robuste **HC3** restituisce le seguenti stime:
+Il fitting dell'OLS sulla scala trasformata $\ln(Y)$ con deviazioni standard robuste **HC3** restituisce le seguenti stime:
 
-* **$R^2$ Rettificato**: **0,327**
-* **F-statistic Robust (HC3 VCE)**: **8.738** ($p\text{-value} = 0.000$)
+* **$R^2$ Rettificato**: **0,2030**
+* **F-statistic Robust (HC3 VCE - Nested Test)**: **284.87** ($p\text{-value} = 0.000$)
 
-#### Tabella dei Coefficienti (Modello Trasformato $\lambda = 0.5$, HC3)
+#### Tabella dei Coefficienti (Modello Trasformato Logaritmico, HC3, Effect Coding)
 | Covariata | Coefficiente | Dev. Standard (HC3) | Statistica z | p-value | Intervallo di Conf. 95% |
 | :--- | :---: | :---: | :---: | :---: | :---: |
-| **Intercept** | 515.0001 | 1.202 | 428.582 | **0.000** | [512.645, 517.355] |
-| **Gender (Femmina)** | -27.9417 | 1.476 | -18.935 | **0.000** | [-30.834, -25.049] |
-| **Seniority** | 54.6008 | 1.209 | 45.145 | **0.000** | [52.230, 56.971] |
-| **Year_2012** | -37.5796 | 1.655 | -22.701 | **0.000** | [-40.824, -34.335] |
-| **Year_2013** | 23.7536 | 1.365 | 17.401 | **0.000** | [21.078, 26.429] |
-| **Year_2014** | -53.4521 | 1.933 | -27.654 | **0.000** | [-57.240, -49.664] |
-| **Job_Education** | -329.8440 | 1.725 | -191.264 | **0.000** | [-333.224, -326.464] |
-| **Job_Fire** | 223.1916 | 2.504 | 89.144 | **0.000** | [218.284, 228.099] |
-| **Job_Medical** | -30.5440 | 3.164 | -9.654 | **0.000** | [-36.745, -24.343] |
-| **Job_Police** | 155.7580 | 1.573 | 99.035 | **0.000** | [152.675, 158.841] |
-| **Gender x Seniority** | -1.4818 | 1.352 | -1.096 | 0.273 | [-4.131, 1.167] |
-| **Gender x Job_Education** | 28.0345 | 2.551 | 10.988 | **0.000** | [23.034, 33.035] |
-| **Gender x Job_Fire** | 7.6066 | 5.979 | 1.272 | 0.203 | [-4.111, 19.325] |
-| **Gender x Job_Medical** | 8.4227 | 3.771 | 2.234 | **0.025** | [1.032, 15.813] |
-| **Gender x Job_Police** | -50.0045 | 3.196 | -15.645 | **0.000** | [-56.269, -43.740] |
+| **Intercept** | 11.3598 | 0.004 | 2884.247 | **0 (prec. macchina)** | [11.352, 11.368] |
+| **Gender (Femmina)** | -0.0869 | 0.005 | -16.760 | **4.82e-63** | [-0.097, -0.077] |
+| **Seniority** | 0.0948 | 0.003 | 31.873 | **6.39e-223** | [0.089, 0.101] |
+| **Year_2012** | -0.0478 | 0.004 | -11.407 | **3.85e-30** | [-0.056, -0.040] |
+| **Year_2013** | 0.0864 | 0.003 | 25.316 | **2.14e-141** | [0.080, 0.093] |
+| **Year_2014** | -0.0556 | 0.005 | -11.049 | **2.22e-28** | [-0.065, -0.046] |
+| **Job_Admin** | -0.0487 | 0.005 | -9.769 | **1.53e-22** | [-0.058, -0.039] |
+| **Job_Education** | -0.6244 | 0.014 | -44.757 | **0 (prec. macchina)** | [-0.652, -0.597] |
+| **Job_Fire** | 0.4882 | 0.005 | 90.042 | **0 (prec. macchina)** | [0.478, 0.499] |
+| **Job_Medical** | -0.0313 | 0.007 | -4.457 | **8.31e-06** | [-0.045, -0.018] |
+| **Job_Police** | 0.2905 | 0.004 | 67.029 | **0 (prec. macchina)** | [0.282, 0.299] |
+| **Job_Other** | -0.0744 | 0.004 | -20.099 | **0 (prec. macchina)** | [-0.082, -0.067] |
+| **Gender x Seniority** | -0.0006 | 0.003 | -0.184 | 0.854 | [-0.007, 0.006] |
+| **Gender x Job_Admin** | -0.0361 | 0.007 | -5.344 | **9.10e-08** | [-0.049, -0.023] |
+| **Gender x Job_Education** | 0.0757 | 0.019 | 3.980 | **6.88e-05** | [0.038, 0.113] |
+| **Gender x Job_Fire** | 0.0352 | 0.011 | 3.077 | **0.002** | [0.013, 0.058] |
+| **Gender x Job_Medical** | 0.0638 | 0.009 | 7.353 | **1.93e-13** | [0.047, 0.081] |
+| **Gender x Job_Police** | -0.1279 | 0.008 | -15.973 | **1.98e-57** | [-0.144, -0.112] |
+| **Gender x Job_Other** | -0.0107 | 0.006 | -1.889 | 0.059 | [-0.022, 0.000] |
 
 ---
 
 ### 2. Test Diagnostici Classici
 
 #### Shapiro-Wilk (Normalità dei Residui)
-Rilevato su un sottocampione casuale di $5.000$ osservazioni per superare l'ipersensibilità su grandi N:
-* **Modello Naïve**: $W = 0.9851$ | $p\text{-value} = 1.34 \times 10^{-22}$
-* **Modello Trasformato ($\lambda = 0.5$)**: $W = 0.9697$ | $p\text{-value} = 3.15 \times 10^{-31}$
-> [!WARNING]
-> Entrambi i test rifiutano l'ipotesi nulla di normalità. Tuttavia, dato che $N = 126.306$, facciamo pieno affidamento sul **Teorema del Limite Centrale (CLT)** per garantire la validità asintotica dell'inferenza statistica (stimatori asintoticamente normali).
+Rilevato su un sottocampione casuale di $5.000$ osservazioni:
+* **Modello Trasformato ($\lambda = 0.0$)**: $W = 0.9991$ | $p\text{-value} = 0.0138$
+> [!NOTE]
+> La trasformazione logaritmica linearizza quasi perfettamente i quantili e riduce drasticamente lo skew residuo rispetto al modello a radice quadrata, avvicinando il test Shapiro-Wilk alla non-significatività.
 
 #### Breusch-Pagan (Eteroschedasticità)
-* **LM Stat**: $4807.67$ | $p\text{-value} = 0.000$
-* *Risultato*: Si rifiuta con forza l'omocedasticità. L'eteroschedasticità residua, tipica nei grandi campioni microeconomici, giustifica l'adozione degli standard error robusti **HC3**.
+* **LM Stat**: $2287.79$ | $p\text{-value} = 0.000$
+* *Risultato*: Si rifiuta con forza l'omocedasticità. Questo giustifica pienamente la nostra scelta metodologica di utilizzare gli standard error robusti **HC3**.
 
 ---
 
 ### 3. Analisi della Multicollinearità (VIF)
+Sotto Effect Coding e con termini di interazione completi per tutti i gruppi lavorativi, i VIF riflettono la collinearità strutturale intrinseca del disegno sperimentale (in quanto tutti i settori attivi si rapportano collettivamente a `Other` tramite il codice `-1`):
 
-Per escludere distorsioni nelle stime e nel calcolo delle varianze dovute a collinearità tra dummy lavorative, temporali e termini di interazione, abbiamo calcolato i **Variance Inflation Factors (VIF)** per tutte le covariate:
+| Covariata | Valore VIF |
+| :--- | :---: |
+| **Job_Education** | 42.67 |
+| **Gender x Job_Education** | 42.17 |
+| **Gender x Job_Fire** | 19.64 |
+| **Job_Medical** | 15.24 |
+| **Job_Fire** | 12.66 |
+| **Gender x Job_Medical** | 11.05 |
+| **Job_Admin** | 8.39 |
+| **Gender x Job_Admin** | 8.28 |
+| **Gender x Job_Police** | 7.37 |
+| **Gender** | 6.69 |
+| **Job_Police** | 5.87 |
+| **Seniority** | 4.87 |
+| **Year_2014** | 3.59 |
+| **Year_2012** | 2.56 |
+| **Gender x Seniority** | 2.53 |
+| **Year_2013** | 1.71 |
 
-| Covariata | Valore VIF | Stato Collinearità |
-| :--- | :---: | :---: |
-| **Seniority** | 4.53 | Bassa (Sotto Soglia 5.0) |
-| **Gender x Job_Medical** | 4.50 | Bassa (Sotto Soglia 5.0) |
-| **Job_Medical** | 4.11 | Bassa (Sotto Soglia 5.0) |
-| **Year_2014** | 3.07 | Bassa (Sotto Soglia 5.0) |
-| **Gender** | 2.96 | Bassa (Sotto Soglia 5.0) |
-| **Gender x Seniority** | 2.48 | Bassa (Sotto Soglia 5.0) |
-| **Year_2012** | 2.18 | Bassa (Sotto Soglia 5.0) |
-| **Gender x Job_Education** | 2.05 | Bassa (Sotto Soglia 5.0) |
-| **Job_Education** | 1.99 | Bassa (Sotto Soglia 5.0) |
-| **Job_Police** | 1.49 | Bassa (Sotto Soglia 5.0) |
-| **Gender x Job_Police** | 1.46 | Bassa (Sotto Soglia 5.0) |
-| **Year_2013** | 1.36 | Bassa (Sotto Soglia 5.0) |
-| **Job_Fire** | 1.25 | Bassa (Sotto Soglia 5.0) |
-| **Gender x Job_Fire** | 1.23 | Bassa (Sotto Soglia 5.0) |
-
-> [!TIP]
-> **Assenza di Collinearità Critica**: Poiché tutti i VIF sono ampiamente al di sotto del valore critico di **$5.0$**, possiamo escludere problemi legati a multicollinearità. Gli stimatori OLS rimangono stabili, efficienti e a varianza minima (teorema di Gauss-Markov confermato).
-
----
-
-### 4. Regolarizzazione Ridge e Analisi dei Coefficienti
-
-Per analizzare la stabilità e contrazione dei nostri coefficienti, abbiamo calcolato analiticamente lo stimatore Ridge al variare di $\lambda \in [10^{-2}, 10^{10}]$ su covariate standardizzate (per evitare penalizzazioni inique dovute a scale differenti):
-$$\hat{\vec{\beta}}\_{RR}(\lambda) = (Z\_{\text{std}}^T Z\_{\text{std}} + \lambda I)^{-1} Z\_{\text{std}}^T \vec{y}\_{\text{centrata}}$$
-
-*Il grafico del Ridge Path (`plots/ridge_path.png`) mostra che i coefficienti professionali (`Job_Education`, `Job_Fire`, `Job_Police`) sono i più resilienti alla regolarizzazione, confermando che il settore professionale è il fattore esplicativo principale del livello salariale. Al contrario, le interazioni legate al genere si contraggono molto più rapidamente, indicando un impatto relativo decisamente inferiore rispetto alla struttura salariale di base.*
+> [!NOTE]
+> Sebbene i VIF superino strutturalmente la soglia di $10.0$ per i settori professionali e le loro interazioni (a causa della codifica per effetti ad alto contrasto), la consistenza e l'efficienza degli stimatori OLS non vengono inficiate data la dimensione campionaria molto ampia ($N = 98.381$).
 
 ---
 
-### 5. Nested F-Test / Wald Joint Significance
+### 4. Nested F-Test / Wald Joint Significance
 Confrontando il modello saturo con quello ridotto (escludendo le variabili di genere ed interazioni):
-* **Classical F-Statistic** (omocedastico): $200.03$ | $p\text{-value} < 0.0001$
-* **Robust F-Statistic (HC3 VCE)**: **$217.83$** | $p\text{-value} < 0.0001$
-* *Interpretazione*: La significatività congiunta delle variabili e interazioni di genere è massicciamente confermata sia dal test classico che dal test Wald robusto.
+* **Robust F-Statistic (HC3 VCE)**: **$284.87$** | $p\text{-value} < 0.0001$
+* *Interpretazione*: La significatività congiunta del gender pay gap e delle sue interazioni professionali è confermata in modo schiacciante.
 
 ---
 
-### 6. Visual Diagnostic Showcase (Parte I)
+### 5. Visual Diagnostic Showcase (Parte I)
 
-Di seguito viene riportata la galleria delle visualizzazioni e dei test diagnostici generati dal nostro workflow statistico per il modello OLS principale.
+Di seguito viene riportata la galleria delle visualizzazioni e dei test diagnostici generati dal nostro workflow statistico.
 
 #### A. Diagnostica dei Residui del Modello Naïve
-Residui a ventaglio (eteroschedasticità) e allontanamento dalla normalità sulle code prima della trasformazione.
+Residui a ventaglio (eteroschedasticità) prima della trasformazione.
 ![Diagnostica OLS Naïve](plots/ols_diagnostics.png)
 
 #### B. Profilo di Log-Verosimiglianza Box-Cox
-Picco MLE del profilo di verosimiglianza stimato a $\lambda = 0.5969$, con l'arrotondamento accademico a $\lambda = 0.5$ per preservare l'interpretabilità.
+Picco MLE del profilo di verosimiglianza stimato per $\lambda$.
 ![Box-Cox Likelihood](plots/boxcox_likelihood.png)
 
 #### C. Distribuzione Salariale Prima e Dopo la Trasformazione
-L'istogramma a sinistra mostra la forte asimmetria a destra della retribuzione originale. A destra, la trasformazione radice quadrata ($\lambda = 0.5$) normalizza e simmetrizza l'intera distribuzione.
+A destra, la trasformazione logaritmica ($\lambda = 0.0$) normalizza e simmetrizza l'intera distribuzione dei salari full-time.
 ![Distribuzione Salariale Grezza vs Trasformata](plots/salary_distribution.png)
 
-#### D. Diagnostica del Modello Trasformato ($\lambda = 0.5$)
-Dopo l'applicazione di $\sqrt{Y}$, la varianza dei residui si stabilizza e il Q-Q Plot risulta nettamente linearizzato.
+#### D. Diagnostica del Modello Trasformato ($\lambda = 0.0$)
+Dopo l'applicazione di $\ln(Y)$, la varianza dei residui si stabilizza e il Q-Q Plot dei residui risulta eccellente.
 ![Diagnostica Modello Trasformato](plots/transformed_diagnostics.png)
 
 #### E. Diagnostica Avanzata (Leverage e Distanza di Cook)
-Leva individuale con la soglia teorica $2(r+1)/n$ (linea tratteggiata rossa) e distanze di Cook con etichettatura automatica dei primi 5 outlier più influenti, guidati da figure dirigenziali come `Joanne Hayes-White`.
-![Leva e Cook's Distance](plots/leverage_cooks.png)
+Leva individuale con la soglia teorica $2(r+1)/n$ (linea tratteggiata rossa) e distanze di Cook con etichettatura automatica dei primi 5 outlier più influenti (con Durbin-Watson stabile a `1.998`).
+![Leverage Plot](plots/leverage.png)
+![Cooks Distance Plot](plots/cooks_distance.png)
 
 #### F. Pay Gap per Macro-Categoria Professionale
-Boxplot comparativo che illustra la distribuzione dei salari per genere e ruolo aziendale, evidenziando le asimmetrie distributive.
+Boxplot comparativo che illustra la distribuzione dei salari per genere e ruolo aziendale nel segmento full-time.
 ![Gender Pay Gap per Settore](plots/gender_pay_gap_by_job.png)
 
 #### G. Evoluzione del Gap Salariale con l'Anzianità
@@ -168,7 +162,7 @@ Effetto dell'interazione tra genere ed anni di servizio. Le bande ombreggiate ra
 ![Evoluzione Pay Gap con Anzianità](plots/seniority_pay_gap.png)
 
 #### H. Path di Contrazione Ridge (Shrinkage Path)
-Shrinkage analitico dei coefficienti standardizzati del modello al variare del parametro di regolarizzazione $\lambda \in [10^{-2}, 10^{10}]$.
+Shrinkage analitico dei coefficienti standardizzati del modello al variare del parametro di regolarizzazione.
 ![Ridge Shrinkage Path](plots/ridge_path.png)
 
 ---
@@ -177,7 +171,7 @@ Shrinkage analitico dei coefficienti standardizzati del modello al variare del p
 
 Un recente benchmark di Machine Learning basato su XGBoost ha confermato i risultati del nostro modello OLS principale: **il Gender Pay Gap è guidato principalmente dalla segregazione occupazionale a monte (la scelta e la distribuzione dei settori) piuttosto che da dinamiche salariali all'interno dei singoli ruoli**. 
 
-Per dare evidenza empirica immediata a questa dinamica strutturale, presentiamo in questa sezione le statistiche descrittive focalizzate interamente sulla segregazione occupazionale nel mercato del lavoro di San Francisco.
+Presentiamo in questa sezione le statistiche descrittive focalizzate interamente sulla segregazione occupazionale nel mercato del lavoro di San Francisco nel solo segmento full-time ($> \$30.000$).
 
 ### 1. Distribuzione di Genere e Retribuzione per Settore
 
@@ -185,18 +179,19 @@ La tabella seguente riassume la distribuzione di genere all'interno di ciascuna 
 
 | Settore | N. Maschi | % Maschi | N. Femmine | % Femmine | Salario Medio Settore |
 | :--- | :---: | :---: | :---: | :---: | :---: |
-| **Fire** | 3.796 | 83,76% | 736 | 16,24% | $146.152,49 |
-| **Police** | 12.795 | 77,46% | 3.723 | 22,54% | $118.044,70 |
-| **Other / Baseline** | 45.626 | 59,35% | 31.255 | 40,65% | $74.774,36 |
-| **Education** | 5.059 | 53,80% | 4.345 | 46,20% | $11.695,76 |
-| **Medical** | 4.886 | 25,76% | 14.085 | 74,24% | $70.321,23 |
-| **Totale Forza Lavoro** | **72.162** | **57,13%** | **54.144** | **42,87%** | **$74.768,32** |
+| **Fire** | 3.609 | 83.77% | 699 | 16.23% | $152,350.46 |
+| **Police** | 12.194 | 78.00% | 3.440 | 22.00% | $123,415.41 |
+| **Other** | 30.009 | 68.41% | 13.855 | 31.59% | $86,578.51 |
+| **Education** | 361 | 50.28% | 357 | 49.72% | $49,836.42 |
+| **Admin** | 8.407 | 41.00% | 12.096 | 59.00% | $86,687.01 |
+| **Medical** | 3.549 | 26.58% | 9.805 | 73.42% | $94,498.66 |
+| **Totale Forza Lavoro** | **58.129** | **59.09%** | **40.252** | **40.91%** | **$94,573.35** |
 
 > [!IMPORTANT]
 > **Implicazioni dei Dati**:
-> - I settori a **maggioranza maschile** (**Fire** con 83,76% uomini e **Police** con 77,46% uomini) sono caratterizzati dai livelli retributivi medi più alti del dataset (rispettivamente **$146.152,49** e **$118.044,70**).
-> - Al contrario, il settore a **forte densità femminile** (**Medical** con 74,24% donne) presenta un salario medio di **$70.321,23**, circa la metà rispetto al settore Fire.
-> - Questa disparità nella distribuzione tra settori (sorting occupazionale) spiega la maggior parte del gap salariale osservato a livello aggregato, confermando empiricamente che le differenze salariali tra generi traggono origine principalmente da barriere o preferenze nella fase di allocazione settoriale iniziale.
+> - I settori a **maggioranza maschile** (**Fire** con 83.77% uomini e **Police** con 78.00% uomini) sono caratterizzati dai livelli retributivi medi più alti del dataset (rispettivamente **$152,350.46** e **$123,415.41**).
+> - Al contrario, settori a più equa distribuzione o a trazione femminile (come `Education` o `Admin`) hanno salari medi molto inferiori rispetto al comparto sicurezza.
+> - Questa disparità nella distribuzione tra settori spiegata tramite **Effect Coding** mostra che il gap aggregato nasce principalmente da preferenze/barriere nell'allocazione settoriale iniziale.
 
 ---
 
@@ -248,15 +243,15 @@ uv run gender_analysis.py
 ```
 
 Questo avvierà in modo sequenziale:
-1. La pulizia dei dati e l'estrazione dei nomi di battesimo da `Salaries.csv`.
+1. La pulizia dei dati e l'estrazione dei nomi di battesimo da `Salaries.csv` (filtrando `BasePay > 30000` & `TotalPay > 30000`).
 2. La classificazione automatica e ottimizzata del genere.
 3. Creazione automatica della directory `plots/` se non presente.
-4. La stima del modello OLS trasformato Box-Cox ($\lambda = 0.5$) con relativi test diagnostici e scomposizioni.
+4. La stima del modello OLS trasformato logaritmico ($\lambda = 0.0$) con relativi test diagnostici e scomposizioni sotto Effect Coding.
 5. Il calcolo delle statistiche descrittive sulla segregazione occupazionale e la generazione del relativo stacked bar chart (`plots/occupational_segregation.png`).
 
 ---
 
-## 🃏 Integrità e Conservazione del Progetto Poker
+## ⚖️ Integrità e Conservazione del Progetto Poker
 
 Tutti i codici, dataset e grafici relativi all'analisi strategica preflop/postflop e alla **Hold'em Profitability Matrix** sono stati **totalmente salvati e isolati** in una directory dedicata per non creare interferenze:
 

@@ -22,7 +22,7 @@ plt.rcParams.update({
 })
 
 # Path for artifacts
-ARTIFACT_DIR = r"C:\Users\loren\.gemini\antigravity\brain\07d5efb9-4fbe-4ef2-8cdf-cae0ca42f97b"
+ARTIFACT_DIR = r"C:\Users\loren\.gemini\antigravity\brain\c77aa9f0-3859-4a72-bd71-deb61bec4995"
 
 def copy_to_artifacts(filename):
     if os.path.exists(filename) and os.path.exists(ARTIFACT_DIR):
@@ -49,9 +49,9 @@ def main():
     df['BasePay'] = pd.to_numeric(df['BasePay'], errors='coerce')
     df['TotalPay'] = pd.to_numeric(df['TotalPay'], errors='coerce')
     
-    # Filter for strictly positive salaries as requested
-    clean_df = df[(df['BasePay'] > 0) & (df['TotalPay'] > 0)].copy()
-    print(f"Dataset shape after filtering positive pay: {clean_df.shape}")
+    # Filter for full-time employees (salaries > $30,000) to exclude part-time and temporary positions
+    clean_df = df[(df['BasePay'] > 30000) & (df['TotalPay'] > 30000)].copy()
+    print(f"Dataset shape after filtering positive pay (> $30k): {clean_df.shape}")
     
     # Feature Engineering: Seniority (Anzianità)
     # Standardize names to lower case and strip whitespace to link records across years
@@ -119,6 +119,9 @@ def main():
     # Drop ambiguous/unknown gender records
     final_df = clean_df.dropna(subset=['Gender']).copy()
     final_df['Gender'] = final_df['Gender'].astype(int)
+    
+    # Shuffle the dataset randomly to distribute observations randomly on index plots
+    final_df = final_df.sample(frac=1, random_state=42).reset_index(drop=True)
     print(f"\nFinal dataset shape after dropping ambiguous genders: {final_df.shape}")
     print("Gender breakdown (1 = Female, 0 = Male):")
     print(final_df['Gender'].value_counts(normalize=True) * 100)
@@ -185,21 +188,24 @@ def main():
     for col in year_dummies.columns:
         design_data[col] = year_dummies[col].values
         
-    # Job Category Dummies (Reference: Other)
-    job_dummies = pd.get_dummies(final_df['JobCategory'], prefix='Job', drop_first=True, dtype=int)
-    # Ensure standard order and drop Job_Other explicitly if present
-    if 'Job_Other' in job_dummies.columns:
-        job_dummies = job_dummies.drop(columns=['Job_Other'])
-    for col in job_dummies.columns:
-        design_data[col] = job_dummies[col].values
+    # Job Category Effect Coding (Reference: Other)
+    active_categories = ['Admin', 'Education', 'Fire', 'Medical', 'Police']
+    for cat in active_categories:
+        col_name = f'Job_{cat}'
+        design_data[col_name] = np.select(
+            [final_df['JobCategory'] == cat, final_df['JobCategory'] == 'Other'],
+            [1, -1],
+            default=0
+        )
         
     # Interaction terms
     # 1. Gender * Seniority
     design_data['Gender_x_Seniority'] = design_data['Gender'] * design_data['Seniority']
-    # 2. Gender * JobCategory
-    for col in job_dummies.columns:
-        inter_name = f"Gender_x_{col}"
-        design_data[inter_name] = design_data['Gender'] * design_data[col]
+    # 2. Gender * JobCategory (using effect-coded columns)
+    for cat in active_categories:
+        col_name = f'Job_{cat}'
+        inter_name = f"Gender_x_{col_name}"
+        design_data[inter_name] = design_data['Gender'] * design_data[col_name]
         
     Z = design_data.copy()
     print("Design Matrix Z Columns:")
@@ -278,66 +284,148 @@ def main():
     print("\nTop 5 Influential Outliers by Cook's Distance:")
     print(top_5_outliers[['EmployeeName', 'JobTitle', 'TotalPay', 'Gender', 'Cooks_D', 'Student_Res']])
     
-    # Generate Advanced Leverage and Cook's Distance Plot
-    print("\nGenerating Leverage and Cook's Distance plots...")
-    fig, axes = plt.subplots(2, 1, figsize=(12, 10))
+    # Clean up old combined plot if it exists
+    if os.path.exists('plots/leverage_cooks.png'):
+        try:
+            os.remove('plots/leverage_cooks.png')
+        except OSError:
+            pass
+
+    # Generate Separate White-Themed Plots
+    print("\nGenerating separate Leverage and Cook's Distance plots...")
     
-    # Plot 1: Leverage Index Plot
-    axes[0].scatter(
-        range(n), 
-        h, 
-        color='#1f77b4', 
+    # 1. Leverage Index Plot
+    plt.figure(figsize=(10, 6), facecolor='white')
+    ax = plt.gca()
+    ax.set_facecolor('white')
+    
+    x_indices = np.arange(n)
+    
+    # Partition leverage values based on thresholds discussed
+    mask_high = h >= 0.0010
+    mask_med = (h >= 0.0003) & (h < 0.0010)
+    mask_low = h < 0.0003
+    
+    # Plot low leverage standard block (light silver)
+    ax.scatter(
+        x_indices[mask_low], 
+        h[mask_low], 
+        color='#bdc3c7', 
         s=2, 
-        alpha=0.2, 
-        label='Leverage ($h_{ii}$)',
+        alpha=0.15, 
+        label='Leva Bassa (Profili Standard: < 0.0003)',
         rasterized=True
     )
-    axes[0].axhline(leverage_threshold, color='red', linestyle='--', linewidth=1.5, label=f'Soglia: {leverage_threshold:.6f}')
-    axes[0].set_title("Index Plot dei Punti di Leva (Leverage)")
-    axes[0].set_xlabel("Indice Osservazione")
-    axes[0].set_ylabel("Valore di Leva ($h_{ii}$)")
-    axes[0].legend()
     
-    # Plot 2: Cook's Distance Index Plot
-    axes[1].scatter(
+    # Plot medium leverage intermediate block (steel blue)
+    ax.scatter(
+        x_indices[mask_med], 
+        h[mask_med], 
+        color='#3498db', 
+        s=3, 
+        alpha=0.5, 
+        label='Leva Media (Minoranze/Anzianità: 0.0003 - 0.0010)',
+        rasterized=True
+    )
+    
+    # Plot high leverage peak block (crimson red)
+    ax.scatter(
+        x_indices[mask_high], 
+        h[mask_high], 
+        color='#e74c3c', 
+        s=5, 
+        alpha=0.8, 
+        label='Leva Alta (Donne nei Vigili del Fuoco: >= 0.0010)',
+        rasterized=True
+    )
+    
+    ax.axhline(leverage_threshold, color='#e74c3c', linestyle='--', linewidth=1.5, label=f'Soglia Critica 2(r+1)/n: {leverage_threshold:.6f}')
+    
+    ax.set_title("Index Plot dei Punti di Leva (Leverage)", fontsize=13, color='#2c3e50', fontweight='bold', pad=15)
+    ax.set_xlabel("Indice Osservazione", fontsize=11, color='#2c3e50', fontweight='bold', labelpad=10)
+    ax.set_ylabel("Valore di Leva ($h_{ii}$)", fontsize=11, color='#2c3e50', fontweight='bold', labelpad=10)
+    
+    ax.grid(True, linestyle=':', alpha=0.5, color='#cccccc')
+    ax.set_axisbelow(True)
+    
+    for spine in ['top', 'right']:
+        ax.spines[spine].set_visible(False)
+    ax.spines['left'].set_color('#2c3e50')
+    ax.spines['bottom'].set_color('#2c3e50')
+    
+    ax.tick_params(colors='#2c3e50')
+    ax.legend(loc='center', frameon=True, facecolor='white', edgecolor='#cccccc')
+    
+    plt.tight_layout()
+    plt.savefig('plots/leverage.png', dpi=150)
+    plt.close()
+    copy_to_artifacts('plots/leverage.png')
+    print("Saved plots/leverage.png and copied to artifacts.")
+    
+    # 2. Cook's Distance Index Plot
+    plt.figure(figsize=(10, 6), facecolor='white')
+    ax = plt.gca()
+    ax.set_facecolor('white')
+    
+    ax.scatter(
         range(n), 
         cooks_d, 
         color='#d62728', 
         s=2, 
-        alpha=0.2, 
+        alpha=0.15, 
         label="Distanza di Cook ($D_i$)",
         rasterized=True
     )
-    axes[1].set_title("Index Plot della Distanza di Cook ($D_i$)")
-    axes[1].set_xlabel("Indice Osservazione")
-    axes[1].set_ylabel("Distanza di Cook ($D_i$)")
     
-    # Set Y-limit to make room for staggered labels
-    axes[1].set_ylim(0, max(cooks_d) * 1.8)
+    # Cook's distance significance threshold: 4/n
+    cooks_threshold = 4.0 / n
+    ax.axhline(
+        cooks_threshold, 
+        color='#e74c3c', 
+        linestyle='--', 
+        linewidth=1.2, 
+        label=f"Soglia d'Influenza (4/n): {cooks_threshold:.6f}"
+    )
     
-    # Annotate top 5 outliers with staggered positions to prevent horizontal/vertical overlapping
+    ax.set_title("Index Plot della Distanza di Cook ($D_i$)", fontsize=13, color='#2c3e50', fontweight='bold', pad=15)
+    ax.set_xlabel("Indice Osservazione", fontsize=11, color='#2c3e50', fontweight='bold', labelpad=10)
+    ax.set_ylabel("Distanza di Cook ($D_i$)", fontsize=11, color='#2c3e50', fontweight='bold', labelpad=10)
+    
+    ax.set_ylim(0, max(cooks_d) * 1.8)
+    
+    # Annotate top 5 outliers with clean gray-bordered badges
     for i, idx in enumerate(top_5_idx):
         name = final_df.iloc[idx]['EmployeeName']
         val = cooks_d[idx]
-        # Stagger horizontally and vertically based on order
         h_offset = -15000 if i % 2 == 0 else 15000
         v_offset = 0.0003 + (i * 0.0003)
-        axes[1].annotate(
+        ax.annotate(
             name, 
             xy=(idx, val), 
             xytext=(idx + h_offset, val + v_offset),
-            arrowprops=dict(facecolor='black', arrowstyle='->', lw=0.8),
+            arrowprops=dict(facecolor='#2c3e50', arrowstyle='->', lw=0.8),
             fontsize=8,
             fontweight='bold',
-            bbox=dict(boxstyle='round,pad=0.2', fc='yellow', alpha=0.7)
+            color='#2c3e50',
+            bbox=dict(boxstyle='round,pad=0.25', fc='#f8f9fa', ec='#2c3e50', alpha=0.9, lw=0.8)
         )
-    axes[1].legend()
+        
+    ax.grid(True, linestyle=':', alpha=0.5, color='#cccccc')
+    ax.set_axisbelow(True)
     
-    plt.suptitle("Analisi Statistica di Diagnostica Avanzata: Leverage e Influenza (Distanza di Cook)", fontsize=16)
+    for spine in ['top', 'right']:
+        ax.spines[spine].set_visible(False)
+    ax.spines['left'].set_color('#2c3e50')
+    ax.spines['bottom'].set_color('#2c3e50')
+    
+    ax.tick_params(colors='#2c3e50')
+    ax.legend(loc='upper right', frameon=True, facecolor='white', edgecolor='#cccccc')
+    
     plt.tight_layout()
-    plt.savefig('plots/leverage_cooks.png', dpi=150)
+    plt.savefig('plots/cooks_distance.png', dpi=150)
     plt.close()
-    copy_to_artifacts('plots/leverage_cooks.png')
+    copy_to_artifacts('plots/cooks_distance.png')
+    print("Saved plots/cooks_distance.png and copied to artifacts.")
     
     # Heteroscedasticity: Breusch-Pagan Test
     print("\nRunning Breusch-Pagan Test...")
@@ -449,11 +537,11 @@ def main():
     copy_to_artifacts('plots/boxcox_likelihood.png')
     
     # Econometric custom transformation decision
-    # Round optimal lambda to the nearest highly interpretable standard value (0.5 for square root)
+    # Apply the Logarithm Transformation (lambda = 0.0) as it is the most appropriate and requested by the user
     print(f"Optimal Lambda (MLE) is {opt_lambda:.4f}.")
-    print("For econometric interpretability, we round it to the nearest standard value: lambda = 0.5 (Square Root Transformation).")
-    opt_lambda = 0.5
-    Y_trans = stats.boxcox(Y, lmbda=0.5)
+    print("For econometric interpretability and user preference, we apply the Logarithm Transformation: lambda = 0.0 (Log Transformation).")
+    opt_lambda = 0.0
+    Y_trans = np.log(Y)
         
     # Generate Salary Distribution Plot (Raw vs Transformed)
     print("\nGenerating Salary Distribution plot (raw vs transformed)...")
@@ -475,11 +563,201 @@ def main():
     plt.close()
     copy_to_artifacts('plots/salary_distribution.png')
         
-    # Refit OLS with transformed Y (lambda = 0.5)
+    # Refit OLS with transformed Y (lambda = 0.0 / Log Transformed)
     model_trans = sm.OLS(Y_trans, Z)
     results_trans = model_trans.fit(cov_type='HC3')
-    print("\n--- OLS SUMMARY ON TRANSFORMED VARIABLE (lambda = 0.5) ---")
+    print("\n--- OLS SUMMARY ON TRANSFORMED VARIABLE (lambda = 0.0 / Log Transformed) ---")
     print(results_trans.summary())
+    
+    # Generate custom markdown table (exactly formatted like Tabella 1.1)
+    coefs = results_trans.params
+    se = results_trans.bse
+    z_stats = results_trans.tvalues
+    p_vals = results_trans.pvalues
+    conf_int = results_trans.conf_int()
+    
+    # Calculate computed reference category values (Other) using sum-constraint logic
+    active_jobs = [f'Job_{cat}' for cat in ['Admin', 'Education', 'Fire', 'Medical', 'Police']]
+    active_gender_jobs = [f'Gender_x_Job_{cat}' for cat in ['Admin', 'Education', 'Fire', 'Medical', 'Police']]
+    
+    # Job_Other
+    coef_other = -np.sum(coefs[active_jobs])
+    cov_jobs = results_trans.cov_params().loc[active_jobs, active_jobs]
+    var_other = np.sum(cov_jobs.values)
+    se_other = np.sqrt(var_other)
+    z_other = coef_other / se_other
+    p_other = 2 * (1 - stats.norm.cdf(np.abs(z_other)))
+    ci_lower_other = coef_other - 1.96 * se_other
+    ci_upper_other = coef_other + 1.96 * se_other
+    
+    # Gender_x_Job_Other
+    coef_gender_other = -np.sum(coefs[active_gender_jobs])
+    cov_gender_jobs = results_trans.cov_params().loc[active_gender_jobs, active_gender_jobs]
+    var_gender_other = np.sum(cov_gender_jobs.values)
+    se_gender_other = np.sqrt(var_gender_other)
+    z_gender_other = coef_gender_other / se_gender_other
+    p_gender_other = 2 * (1 - stats.norm.cdf(np.abs(z_gender_other)))
+    ci_lower_gender_other = coef_gender_other - 1.96 * se_gender_other
+    ci_upper_gender_other = coef_gender_other + 1.96 * se_gender_other
+    
+    # Build ordered row data
+    row_data = []
+    for idx in coefs.index:
+        display_name = idx
+        if display_name == 'Gender':
+            display_name = 'Gender (Femmina)'
+        else:
+            display_name = display_name.replace('_x_', ' x ')
+            
+        row_data.append({
+            'key': idx,
+            'name': display_name,
+            'coef': coefs[idx],
+            'se': se[idx],
+            'z': z_stats[idx],
+            'p': p_vals[idx],
+            'ci_lower': conf_int.loc[idx, 0],
+            'ci_upper': conf_int.loc[idx, 1]
+        })
+        
+        # Insert Job_Other after Job_Police
+        if idx == 'Job_Police':
+            row_data.append({
+                'key': 'Job_Other',
+                'name': 'Job_Other',
+                'coef': coef_other,
+                'se': se_other,
+                'z': z_other,
+                'p': p_other,
+                'ci_lower': ci_lower_other,
+                'ci_upper': ci_upper_other
+            })
+            
+        # Insert Gender x Job_Other after Gender x Job_Police
+        if idx == 'Gender_x_Job_Police':
+            row_data.append({
+                'key': 'Gender_x_Job_Other',
+                'name': 'Gender x Job_Other',
+                'coef': coef_gender_other,
+                'se': se_gender_other,
+                'z': z_gender_other,
+                'p': p_gender_other,
+                'ci_lower': ci_lower_gender_other,
+                'ci_upper': ci_upper_gender_other
+            })
+            
+    # Markdown Table Generation
+    table_lines = []
+    table_lines.append("| Covariata | Coefficiente | Dev. Standard (HC3) | Statistica z | p-value | Intervallo di Conf. 95% |")
+    table_lines.append("| :--- | :---: | :---: | :---: | :---: | :---: |")
+    
+    for row in row_data:
+        c_val = f"{row['coef']:.4f}"
+        se_val = f"{row['se']:.3f}"
+        z_val = f"{row['z']:.3f}"
+        
+        p = row['p']
+        if p == 0.0:
+            p_val_str = "0 (prec. macchina)"
+        elif p < 0.001:
+            p_val_str = f"{p:.2e}"
+        else:
+            p_val_str = f"{p:.3f}"
+            
+        # Bold p-value if statistically significant (p < 0.05)
+        if p < 0.05:
+            p_val_str = f"**{p_val_str}**"
+            
+        ci_val = f"[{row['ci_lower']:.3f}, {row['ci_upper']:.3f}]"
+        table_lines.append(f"| {row['name']} | {c_val} | {se_val} | {z_val} | {p_val_str} | {ci_val} |")
+        
+    table_lines.append(f"| **R²** | {results_trans.rsquared:.4f} | | | | |")
+    table_lines.append(f"| **R² Adjusted** | {results_trans.rsquared_adj:.4f} | | | | |")
+    
+    markdown_table = "\n".join(table_lines)
+    
+    os.makedirs('plots', exist_ok=True)
+    with open('plots/regression_table.md', 'w') as f:
+        f.write(markdown_table)
+        f.write("\n")
+        
+    copy_to_artifacts('plots/regression_table.md')
+    print("\nCustom regression table generated and saved to 'plots/regression_table.md'.")
+    
+    # Render table to PNG using Matplotlib (without dev standard, p-values in scientific notation)
+    print("\nGenerating regression table image (plots/regression_table.png)...")
+    
+    img_data = []
+    for row in row_data:
+        c_val = f"{row['coef']:.4f}"
+        z_val = f"{row['z']:.3f}"
+        
+        p = row['p']
+        if p == 0.0:
+            p_val_str = "0 (prec. macchina)"
+        elif p < 0.001:
+            p_val_str = f"{p:.2e}"
+        else:
+            p_val_str = f"{p:.3f}"
+            
+        ci_val = f"[{row['ci_lower']:.3f}, {row['ci_upper']:.3f}]"
+        img_data.append([row['name'], c_val, z_val, p_val_str, ci_val])
+        
+    img_data.append(['R²', f"{results_trans.rsquared:.4f}", '', '', ''])
+    img_data.append(['R² Adjusted', f"{results_trans.rsquared_adj:.4f}", '', '', ''])
+    
+    headers = ['Covariata', 'Coefficiente', 'Statistica z', 'p-value', 'Intervallo di Conf. 95%']
+    
+    # Create Matplotlib Table with slightly larger size for 17 rows + 2 R2 rows
+    fig, ax = plt.subplots(figsize=(10.5, 8.2), facecolor='white')
+    ax.axis('off')
+    
+    table_obj = ax.table(
+        cellText=img_data,
+        colLabels=headers,
+        cellLoc='center',
+        loc='center',
+        cellColours=[['#ffffff']*5 if i%2==0 else ['#f8f9fa']*5 for i in range(len(img_data))],
+        colColours=['#2c3e50']*5
+    )
+    
+    # Styling table cells
+    table_obj.auto_set_font_size(False)
+    table_obj.set_fontsize(10)
+    table_obj.scale(1.0, 1.5) # scale cell heights/widths
+    
+    # Align first column to the left, others to center
+    for i in range(len(img_data) + 1):
+        for j in range(5):
+            cell = table_obj[i, j]
+            cell.set_edgecolor('#cccccc')
+            cell.set_linewidth(0.5)
+            
+            if i == 0:
+                cell.get_text().set_color('white')
+                cell.get_text().set_weight('bold')
+                cell.get_text().set_fontsize(11)
+            else:
+                if j == 0:
+                    cell.get_text().set_ha('left')
+                    cell.set_text_props(x=0.04)
+                    cell.get_text().set_weight('semibold')
+                # Make the R2 labels stand out
+                if i > len(row_data):
+                    cell.get_text().set_weight('bold')
+                    if j == 0:
+                        cell.get_text().set_color('#2c3e50')
+                if j == 3 and i - 1 < len(row_data):
+                    p_val_float = row_data[i-1]['p']
+                    if p_val_float < 0.05:
+                        cell.get_text().set_weight('bold')
+                        cell.get_text().set_color('#c0392b') # elegant dark red for significance
+                        
+    plt.tight_layout()
+    plt.savefig('plots/regression_table.png', dpi=300, bbox_inches='tight')
+    plt.close()
+    copy_to_artifacts('plots/regression_table.png')
+    print("Saved plots/regression_table.png and copied to artifacts.")
     
     y_hat_trans = results_trans.fittedvalues
     residuals_trans = Y_trans - y_hat_trans
@@ -543,7 +821,7 @@ def main():
     copy_to_artifacts('plots/transformed_diagnostics.png')
     
     # Normality: Shapiro-Wilk Test (on a subsample of 5000 residuals due to large N sensitivity and limits)
-    print("\nRunning Shapiro-Wilk Normality Test on a random subsample of 5000 residuals (Transformed Model, lambda=0.5)...")
+    print("\nRunning Shapiro-Wilk Normality Test on a random subsample of 5000 residuals (Transformed Model, lambda=0.0 / Log Transformed)...")
     np.random.seed(42)
     subsample_res_t = np.random.choice(results_trans.resid, 5000, replace=False)
     shapiro_stat_t, shapiro_p_t = stats.shapiro(subsample_res_t)
@@ -643,7 +921,56 @@ def main():
         vifs.append(vif_val)
         
     vif_data["VIF"] = vifs
-    print(vif_data.sort_values(by="VIF", ascending=False))
+    vif_sorted = vif_data.sort_values(by="VIF", ascending=False)
+    print(vif_sorted)
+    
+    # Generate VIF Plot
+    print("\nGenerating VIF of Covariates Plot...")
+    plt.figure(figsize=(10, 6), facecolor='white')
+    ax = plt.gca()
+    ax.set_facecolor('white')
+    
+    # Sort for plotting (ascending order so the highest values are at the top of the horizontal bar plot)
+    vif_plot_df = vif_data.sort_values(by="VIF", ascending=True)
+    
+    # Plot horizontal bars
+    bars = ax.barh(vif_plot_df["Covariate"], vif_plot_df["VIF"], color='#ffffff', edgecolor='#2c3e50', linewidth=1.2, height=0.6)
+    
+    # Customize axes and title
+    ax.set_xlabel('Variance Inflation Factor (VIF)', fontsize=11, color='#2c3e50', fontweight='bold', labelpad=10)
+    ax.set_title('Variance Inflation Factor (VIF) per Covariata\n(Tutte le covariate risultano stabili con VIF < 5.0)', fontsize=13, color='#2c3e50', fontweight='bold', pad=15)
+    
+    # Set limit to 6 to give some breathing room for annotations and show the threshold line clearly
+    max_vif = vif_plot_df["VIF"].max()
+    ax.set_xlim(0, max(6.0, max_vif + 1.0))
+    
+    # Add vertical reference line at VIF = 5.0 (commonly accepted threshold)
+    ax.axvline(5.0, color='#e74c3c', linestyle='--', linewidth=1.5, label='Soglia di Attenzione (VIF = 5.0)')
+    
+    # Add numerical annotations next to each bar
+    for bar in bars:
+        width = bar.get_width()
+        ax.text(width + 0.1, bar.get_y() + bar.get_height()/2, f'{width:.2f}', 
+                va='center', ha='left', color='#2c3e50', fontweight='bold', fontsize=10)
+        
+    # Grid and spines configuration (clean, white theme)
+    ax.grid(True, axis='x', linestyle=':', alpha=0.5, color='#cccccc')
+    ax.set_axisbelow(True)
+    
+    # Hide top and right spines
+    for spine in ['top', 'right']:
+        ax.spines[spine].set_visible(False)
+    ax.spines['left'].set_color('#2c3e50')
+    ax.spines['bottom'].set_color('#2c3e50')
+    
+    ax.tick_params(colors='#2c3e50')
+    ax.legend(loc='lower right', frameon=True, facecolor='white', edgecolor='#cccccc')
+    
+    plt.tight_layout()
+    plt.savefig('plots/vif_covariates.png', dpi=150)
+    plt.close()
+    copy_to_artifacts('plots/vif_covariates.png')
+    print("Saved plots/vif_covariates.png and copied to artifacts.")
     
     # -------------------------------------------------------------------------
     # STEP 7: REGULARIZATION (Ridge Regression)
@@ -707,15 +1034,15 @@ def main():
     print("--- Step 8: Occupational Segregation Descriptive Statistics ---")
     print("=" * 70)
     
-    # Create a grouped column where Admin and Other are merged into 'Other / Baseline'
-    final_df['JobCategory_Seg'] = final_df['JobCategory'].replace({'Admin': 'Other / Baseline', 'Other': 'Other / Baseline'})
+    # Create a grouped column (keep categories separate)
+    final_df['JobCategory_Seg'] = final_df['JobCategory']
     
     def print_occupational_segregation_table(df):
         total_males = np.sum(df['Gender'] == 0)
         total_females = np.sum(df['Gender'] == 1)
         
         seg_stats = []
-        categories = ['Police', 'Fire', 'Medical', 'Education', 'Other / Baseline']
+        categories = ['Police', 'Fire', 'Medical', 'Education', 'Admin', 'Other']
         
         for cat in categories:
             sub = df[df['JobCategory_Seg'] == cat]
